@@ -83,7 +83,7 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
     <div id="pos-overlay" class="pos-overlay">
         <div id="step-type" class="selection-card">
             <h1 style="margin-bottom:20px;">New Order</h1>
-            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
                 <div class="cat-item" style="border:1px solid #eee; border-radius:15px; padding:25px; <?php echo empty( $svc_on['dine_in'] ) ? 'display:none;' : ''; ?>" onclick="selectType('dine_in')">🍽️<br>Dine In</div>
                 <div class="cat-item" style="border:1px solid #eee; border-radius:15px; padding:25px; <?php echo empty( $svc_on['take_out'] ) ? 'display:none;' : ''; ?>" onclick="selectType('take_out')">🛍️<br>Take Out</div>
                 <div class="cat-item <?php echo $can_use_delivery ? '' : 'disabled-option'; ?>" style="<?php echo empty( $svc_on['delivery'] ) ? 'display:none;' : ''; ?>border:1px solid #eee; border-radius:15px; padding:25px; <?php echo $can_use_delivery ? 'cursor:pointer;' : 'opacity:0.6; cursor:not-allowed;'; ?> position: relative;" onclick="selectType('delivery')" title="<?php echo $can_use_delivery ? 'Delivery' : 'Available in Pro'; ?>">
@@ -92,7 +92,7 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
                         <small style="display:block; font-size:10px; color:#ef4444; margin-top:5px; font-weight:bold;">Pro</small>
                     <?php endif; ?>
                 </div>
-                <div class="cat-item" style="border:1px solid #eee; border-radius:15px; padding:25px; <?php echo empty( $svc_on['self_service'] ) ? 'display:none;' : ''; ?>" onclick="selectSelfService()">🧾<br>Self-service<small style="display:block; font-size:11px; color:#64748b; margin-top:4px;">Pay at counter</small></div>
+                <div class="cat-item" style="border:1px solid #eee; border-radius:15px; padding:25px; <?php echo empty( $svc_on['self_service'] ) ? 'display:none;' : ''; ?>" onclick="selectSelfService()">🧾<br>Self-service</div>
             </div>
         </div>
         <div id="step-table" class="selection-card" style="display:none;">
