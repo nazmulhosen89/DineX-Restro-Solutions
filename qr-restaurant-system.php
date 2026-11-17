@@ -3,7 +3,7 @@
  * Plugin Name: DineX Restro Solutions.
  * Tagline: Manage Smarter. Serve Faster. Grow Bigger.
  * Description: Streamline restaurant operations with AI-powered automation. Manage orders, kitchen workflows, inventory, POS, and customer experiences from a single platform.
- * Version: 1.5.8
+ * Version: 1.11.9
  * Author: Nazmul Hosen
  * Links: www.nazmulh.com
  * Text Domain: dinex-restro-system
