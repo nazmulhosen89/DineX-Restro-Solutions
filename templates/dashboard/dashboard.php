@@ -231,6 +231,7 @@ $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'report
                         break;
                     case 'backup':
                         qrrs_backup_render();
+                        if ( function_exists( 'qrrs_restore_render' ) ) { qrrs_restore_render(); }
                         break;
                     case 'rooms':
                         if ( qrrs_room_service_enabled( qrrs_inventory_get_active_restaurant_id() ) ) {
