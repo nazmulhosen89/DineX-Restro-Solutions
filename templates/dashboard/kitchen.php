@@ -21,7 +21,8 @@ $sound_url    = QRRS_URL . 'assets/sounds/notification 01.mp3';
     <div class="kitchen-header">
         <div style="display:flex; align-items:center; gap:20px;">
             <div>
-                <h1 style="margin:0; color:#fff; font-size:20px; font-weight:700;">Kitchen Display for <span style="color:#90EE90; font-weight:bold; text-transform:uppercase;"><?php echo esc_html( function_exists( 'qrrs_restaurant_name' ) ? qrrs_restaurant_name( function_exists( 'qrrs_inventory_get_active_restaurant_id' ) ? qrrs_inventory_get_active_restaurant_id() : 0 ) : '' ); ?></span> </h1>
+                <h2 style="margin:0; color:#fff; font-size:20px; font-weight:700;">👨‍🍳 Kitchen Display</h2>
+                <div style="font-size:13px; color:#cbd5e1; margin-top:2px;"><?php echo esc_html( function_exists( 'qrrs_header_restaurant_name' ) ? qrrs_header_restaurant_name() : '' ); ?></div>
                 <div id="kitchen-clock" style="color:#636e72; font-weight:600; font-size:13px;"></div>
             </div>
             <button id="soundToggle" class="sound-toggle-btn">
@@ -226,6 +227,9 @@ function loadKitchenOrders() {
                     </div>
                     ${itemsHtml}
                 </div>
+                <div style="padding:8px 12px 0;">
+                    <button onclick="printKot(${o.id})" style="background:none; border:1px solid #475569; color:#cbd5e1; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;">🖨 Print KOT</button>
+                </div>
                 <div class="k-card-footer">
                     <button onclick="updateKitchenStatus(${o.id}, '${o.next_status}')"
                             class="k-action-btn ${o.btn_class}">
@@ -236,6 +240,18 @@ function loadKitchenOrders() {
         });
 
         jQuery('#kitchen-display-grid').html(html);
+    });
+}
+
+function printKot(orderId) {
+    jQuery.post(qrrs_vars.ajax_url, { action: 'qrrs_kot_print', order_id: orderId, security: qrrs_vars.qr_nonce }, function (res) {
+        if (res && res.success) {
+            var w = window.open('', '_blank');
+            w.document.write(res.data.html);
+            w.document.close();
+        } else {
+            alert((res && res.data) ? res.data : 'Could not print the KOT.');
+        }
     });
 }
 

@@ -29,6 +29,11 @@ if ( isset($_POST['complete_order_id']) ) {
     $discount_value     = floatval($_POST['discount_value'] ?? 0);
     $payment_method     = sanitize_text_field($_POST['payment_method'] ?? 'cash');
     $amount_received    = floatval($_POST['amount_received'] ?? 0);
+    if ( function_exists( 'qrrs_payments_sum' ) && qrrs_payments_sum( $order_to_complete ) > 0 ) {
+        // Split lines decide the amount and the method
+        $payment_method  = qrrs_payments_label( $order_to_complete );
+        $amount_received = qrrs_payments_sum( $order_to_complete );
+    }
 
 
     $orig_order = $wpdb->get_row($wpdb->prepare(
@@ -36,7 +41,7 @@ if ( isset($_POST['complete_order_id']) ) {
         $order_to_complete, $active_res_id
     ));
 
-    if ($orig_order) {
+    if ( $orig_order && ! ( function_exists( 'qrrs_split_insufficient' ) && qrrs_split_insufficient( $order_to_complete, $orig_order->grand_total, $discount_type, $discount_value ) ) ) {
         $grand_total     = floatval($orig_order->grand_total);
         $discount_amount = 0;
 
@@ -186,6 +191,7 @@ $selected_order_id = isset($_GET['order_id']) ? intval($_GET['order_id']) : 0;
                 </div>
                 <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
 
+
                 <div style="float: left;height: calc(100vh - 578px);width: 100%;overflow-y: auto;">
                     <div id="invoice-items-load">
                         <?php foreach ($items as $item): ?>
@@ -230,11 +236,14 @@ $selected_order_id = isset($_GET['order_id']) ? intval($_GET['order_id']) : 0;
                         </div>
                     </div>
 
+                    <div style="display:flex; gap:10px; align-items:stretch; margin-top:20px;">
                     <button type="button"
                         onclick="openPaymentModal(<?php echo $selected_order_id; ?>, <?php echo floatval($order->grand_total); ?>, '<?php echo esc_js($full_invoice_no); ?>', '<?php echo esc_js($order->table_name); ?>')"
-                        style="width:100%; height:55px; background:#2ecc71; border:none; color:white; font-size:18px; font-weight:bold; border-radius:8px; cursor:pointer; margin-top:20px; transition:0.3s;">
+                        style="width:100%; height:55px; background:#2ecc71; border:none; color:white; font-size:18px; font-weight:bold; border-radius:8px; cursor:pointer; margin-top:0; flex:1; transition:0.3s;">
                         💳 COLLECT PAYMENT & SETTLE
                     </button>
+                    <?php if ( function_exists( 'qrrs_void_button_html' ) ) { qrrs_void_button_html( $order ); } ?>
+                    </div>
                 </div>
             </div>
 
@@ -390,6 +399,15 @@ $selected_order_id = isset($_GET['order_id']) ? intval($_GET['order_id']) : 0;
         </div>
 
         <!-- Hidden form values -->
+        <?php $split_lines_arr = function_exists( 'qrrs_payment_lines_for_js' ) ? qrrs_payment_lines_for_js( $selected_order_id ) : []; ?>
+        <div id="split-area" style="margin-bottom:12px;">
+            <button type="button" id="split-toggle" onclick="splitStart()" style="display:none; width:100%; padding:10px; background:#fff; border:2px solid #0284c7; color:#0284c7; border-radius:8px; font-weight:700; cursor:pointer;">✂ Split</button>
+            <div id="split-ref-wrap" style="display:none; margin-top:8px;">
+                <input type="text" id="split-ref" maxlength="100" placeholder="Trx ID (required for bKash / Nagad / Rocket / Card)" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box;">
+            </div>
+            <div id="split-msg" style="color:#dc2626; font-size:12px; margin-top:6px;"></div>
+            <div id="split-lines" style="font-size:13px; margin-top:8px;"></div>
+        </div>
         <form method="POST" action="?tab=billing" id="payment-confirm-form">
             <input type="hidden" name="complete_order_id" id="hidden-order-id">
             <input type="hidden" name="discount_type"     id="hidden-discount-type"  value="none">
@@ -485,8 +503,10 @@ function setDiscountType(type) {
 }
 
 function setPaymentMethod(method) {
+    if (typeof _usedKeys !== 'undefined' && _usedKeys.indexOf(method) !== -1) { return; }
     _paymentMethod = method;
     document.getElementById('hidden-payment-method').value = method;
+    if (typeof splitUpdateUI === 'function') splitUpdateUI();
     document.querySelectorAll('#payment-methods button').forEach(function(btn) {
         if (btn.dataset.method === method) {
             btn.style.border = '2px solid #2ecc71';
@@ -527,7 +547,7 @@ function recalculate() {
 function calcChange(payableOverride) {
     var payable  = payableOverride !== undefined ? payableOverride
                  : parseFloat(document.getElementById('payable-amount-display').textContent) || 0;
-    var received = parseFloat(document.getElementById('amount-received-input').value) || 0;
+    var received = _splitTotal + (parseFloat(document.getElementById('amount-received-input').value) || 0);
     document.getElementById('hidden-amount-received').value = received;
 
     var change = received - payable;
@@ -543,6 +563,7 @@ function calcChange(payableOverride) {
         changeRow.style.background = '#fef9e7';
         changeDisplay.style.color = '#e67e22';
     }
+    splitUpdateUI();
 }
 var confirmCallback = null;
 
@@ -584,23 +605,153 @@ document.getElementById('confirm-payment-btn').addEventListener('click', functio
     validateAndSubmitPayment();
 });
 
-function validateAndSubmitPayment() {
-    var received = parseFloat(document.getElementById('amount-received-input').value) || 0;
-    var payable  = parseFloat(document.getElementById('payable-amount-display').textContent) || 0;
+var _splitLines = <?php echo count( $split_lines_arr ); ?>;
+var _splitTotal = <?php echo function_exists( 'qrrs_payments_sum' ) ? qrrs_payments_sum( $selected_order_id ) : 0; ?>;
+var _splitOrder = <?php echo intval( $selected_order_id ); ?>;
+var _splitNonce = '<?php echo esc_js( wp_create_nonce( 'qrrs_add_payment_' . intval( $selected_order_id ) ) ); ?>';
+var _splitAjaxUrl = '<?php echo esc_js( admin_url( 'admin-post.php' ) ); ?>';
+var _splitInit = <?php echo wp_json_encode( $split_lines_arr ); ?>;
 
+function splitPayable() { return parseFloat(document.getElementById('payable-amount-display').textContent) || 0; }
+function splitTyped()   { return parseFloat(document.getElementById('amount-received-input').value) || 0; }
+function splitMethod()  { return document.getElementById('hidden-payment-method').value || 'cash'; }
+function splitRef()     { return (document.getElementById('split-ref').value || '').trim(); }
+
+function splitRenderLines(lines) {
+    _usedKeys = (lines || []).map(function (l) { return l.key; });
+    applyUsedMethodStyles();
+    if (_usedKeys.indexOf(splitMethod()) !== -1) {
+        var next = firstUnusedMethod();
+        if (next) { setPaymentMethod(next); }
+    }
+    var box = document.getElementById('split-lines');
+    if (!lines || !lines.length) { box.innerHTML = ''; return; }
+    var h = '<div style="font-weight:700; color:#075985; margin-bottom:4px;">Payments</div>';
+    lines.forEach(function (l) {
+        h += '<div style="display:flex; justify-content:space-between; gap:8px; padding:4px 0; border-top:1px dashed #bae6fd;"><span>' + l.method + (l.ref ? ' · ' + l.ref : '') + '</span><strong>' + Number(l.amount).toFixed(2) + ' ৳</strong></div>';
+    });
+    box.innerHTML = h;
+}
+
+var _usedKeys = [];
+
+function paymentMethodButtons() {
+    var out = [];
+    document.querySelectorAll('[onclick]').forEach(function (el) {
+        var m = (el.getAttribute('onclick') || '').match(/setPaymentMethod\('([a-z_]+)'\)/);
+        if (m) out.push({ el: el, key: m[1] });
+    });
+    return out;
+}
+
+function firstUnusedMethod() {
+    var btns = paymentMethodButtons();
+    for (var i = 0; i < btns.length; i++) {
+        if (_usedKeys.indexOf(btns[i].key) === -1) return btns[i].key;
+    }
+    return null;
+}
+
+function applyUsedMethodStyles() {
+    paymentMethodButtons().forEach(function (b) {
+        if (_usedKeys.indexOf(b.key) !== -1) {
+            b.el.setAttribute('data-used', '1');
+            b.el.style.background  = '#16a34a';
+            b.el.style.color       = '#fff';
+            b.el.style.borderColor = '#15803d';
+            b.el.style.opacity     = '1';
+            b.el.style.cursor      = 'not-allowed';
+            b.el.title = 'Already taken in this bill';
+        } else if (b.el.getAttribute('data-used')) {
+            b.el.removeAttribute('data-used');
+            b.el.style.background = ''; b.el.style.color = ''; b.el.style.borderColor = '';
+            b.el.style.opacity = ''; b.el.style.cursor = ''; b.el.title = '';
+        }
+    });
+}
+
+function splitUpdateUI() {
+    var typed = splitTyped();
+    var left  = Math.round((splitPayable() - _splitTotal - typed) * 100) / 100;
+    var isCash = splitMethod() === 'cash';
+    document.getElementById('split-ref-wrap').style.display = isCash ? 'none' : 'block';
+    document.getElementById('split-toggle').style.display  = (typed > 0 && left > 0.005) ? 'block' : 'none';
+    var amt = document.getElementById('amount-received-input');
+    amt.placeholder = (_splitLines > 0 && left > 0) ? left.toFixed(2) : '0.00';
+    applyUsedMethodStyles();
+    setTimeout(applyUsedMethodStyles, 0);
+}
+
+function splitPost(method, amount, ref, onOk) {
+    var body = new URLSearchParams({ action: 'qrrs_add_payment', order_id: _splitOrder, method: method, amount: amount, reference: ref, ajax: '1', _wpnonce: _splitNonce });
+    fetch(_splitAjaxUrl, { method: 'POST', body: body, credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+            if (j && j.success) {
+                _splitLines = j.data.lines.length;
+                _splitTotal = j.data.total;
+                splitRenderLines(j.data.lines);
+                document.getElementById('split-msg').textContent = '';
+                if (onOk) onOk();
+                calcChange();
+            } else {
+                document.getElementById('split-msg').textContent = (j && j.data) ? j.data : 'Could not add the payment.';
+            }
+        })
+        .catch(function () { document.getElementById('split-msg').textContent = 'Network error. Please try again.'; });
+}
+
+// Split: save the amount typed with the selected method, then the field shows what is still due
+function splitStart() {
+    var typed = splitTyped();
+    var m = splitMethod();
+    var ref = splitRef();
+    var msg = document.getElementById('split-msg');
+    if (typed <= 0) { msg.textContent = 'Enter the amount first.'; return; }
+    if (m !== 'cash' && !ref) { msg.textContent = 'Enter the Trx ID for ' + m + '.'; return; }
+    if (m !== 'cash' && typed > splitPayable() - _splitTotal + 0.005) { msg.textContent = 'Only cash can be more than the amount due.'; return; }
+    splitPost(m, typed, ref, function () {
+        document.getElementById('amount-received-input').value = '';
+        document.getElementById('split-ref').value = '';
+        splitUpdateUI();
+    });
+}
+
+// Confirm: if an amount is still typed, save it as the last line first
+function validateAndSubmitPayment() {
+    var typed = splitTyped();
+    if (_splitLines > 0 && typed > 0) {
+        var m = splitMethod(), ref = splitRef();
+        if (m !== 'cash' && !ref) { showCustomAlert('Enter the Trx ID for ' + m + '.'); return; }
+        splitPost(m, typed, ref, function () {
+            document.getElementById('amount-received-input').value = '';
+            document.getElementById('split-ref').value = '';
+            splitSubmitNow();
+        });
+        return;
+    }
+    splitSubmitNow();
+}
+
+function splitSubmitNow() {
+    var received = _splitLines > 0 ? _splitTotal : splitTyped();
+    var payable  = splitPayable();
     if (received <= 0) {
         showCustomAlert('Please enter the amount received.');
         return;
     }
-
+    document.getElementById('hidden-amount-received').value = received;
     if (received < payable) {
-        showCustomConfirm('Amount received is less than payable. Please check the amount', function() {
+        showCustomConfirm('Amount received is less than payable. Please check the amount', function () {
             document.getElementById('payment-confirm-form').submit();
         });
     } else {
         document.getElementById('payment-confirm-form').submit();
     }
 }
+
+splitRenderLines(_splitInit);
+splitUpdateUI();
 
 function printReceipt() {
     window.print();

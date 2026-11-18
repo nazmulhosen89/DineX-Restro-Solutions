@@ -204,6 +204,9 @@ function loadAllOrders() {
                     ${billSummaryHtml}
                     ${deliveryCustomerHtml}
                 </div>
+                <div style="padding:8px 12px 0; display:flex; justify-content:flex-end;">
+                    <button onclick="printKot(${o.id})" style="background:none; border:1px solid #94a3b8; color:#334155; border-radius:8px; padding:5px 12px; font-size:12px; cursor:pointer;">🖨 Print KOT</button>
+                </div>
                 <div class="card-footer" style="display:flex;">
                     ${footerHtml}
                 </div>
@@ -235,6 +238,18 @@ function reviewQrOrder(id, decision) {
         } else {
             card.css('opacity', '1').css('pointer-events', 'auto');
             alert('Failed: ' + (res.data || 'Unknown error'));
+        }
+    });
+}
+
+function printKot(orderId) {
+    jQuery.post(qrrs_vars.ajax_url, { action: 'qrrs_kot_print', order_id: orderId, security: qr_nonce }, function (res) {
+        if (res && res.success) {
+            var w = window.open('', '_blank');
+            w.document.write(res.data.html);
+            w.document.close();
+        } else {
+            alert((res && res.data) ? res.data : 'Could not print the KOT.');
         }
     });
 }

@@ -128,6 +128,13 @@ class QRRS_Database {
             tracking_code varchar(16) NOT NULL DEFAULT '',
             token_no varchar(10) NOT NULL DEFAULT '',
             token_date date DEFAULT NULL,
+            void_reason varchar(255) NOT NULL DEFAULT '',
+            voided_at datetime DEFAULT NULL,
+            voided_by bigint(20) NOT NULL DEFAULT 0,
+            refund_reason varchar(255) NOT NULL DEFAULT '',
+            refunded_at datetime DEFAULT NULL,
+            refunded_by bigint(20) NOT NULL DEFAULT 0,
+            refund_amount decimal(10,2) NOT NULL DEFAULT 0.00,
             cooking_started_at datetime DEFAULT NULL,
             ready_due_at datetime DEFAULT NULL,
             KEY tracking_code (tracking_code),
@@ -415,6 +422,22 @@ class QRRS_Database {
         ) $charset_collate;";
 
         /**
+         * Split payment lines: one bill can have several payments
+         */
+        $sql_payments = "CREATE TABLE {$prefix}payments (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            order_id bigint(20) NOT NULL,
+            restaurant_id bigint(20) NOT NULL DEFAULT 0,
+            method varchar(30) NOT NULL DEFAULT 'cash',
+            amount decimal(10,2) NOT NULL DEFAULT 0.00,
+            reference varchar(100) NOT NULL DEFAULT '',
+            created_by bigint(20) NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY order_id (order_id)
+        ) $charset_collate;";
+
+        /**
          * Audit log: who changed what, and when
          */
         $sql_audit = "CREATE TABLE {$prefix}audit_log (
@@ -616,6 +639,7 @@ class QRRS_Database {
         dbDelta( $sql_delivery_areas );
         dbDelta( $sql_customers );
         dbDelta( $sql_audit );
+        dbDelta( $sql_payments );
         dbDelta( $sql_rooms );
         dbDelta( $sql_stock_movements );
         dbDelta( $sql_requisitions );
