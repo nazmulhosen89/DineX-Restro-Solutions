@@ -49,6 +49,7 @@ require_once QRRS_PATH . 'includes/order/self-service.php';
 require_once QRRS_PATH . 'includes/order/countdown.php';
 require_once QRRS_PATH . 'includes/backup/backup.php';
 require_once QRRS_PATH . 'includes/backup/restore.php';
+require_once QRRS_PATH . 'includes/audit/audit.php';
 
 // Mark plugin app pages so the theme does not apply smooth-scroll (Lenis) to them.
 add_filter( 'body_class', function ( $classes ) {

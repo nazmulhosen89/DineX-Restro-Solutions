@@ -52,7 +52,11 @@ if ( isset($_POST['save_item_action']) ) {
     $saved_item_id = 0;
 
     if ($edit_id > 0) {
+        $old_item = $wpdb->get_row( $wpdb->prepare( "SELECT price, restaurant_id FROM $items_table WHERE id = %d", $edit_id ) );
         $result = $wpdb->update($items_table, $data, ['id' => $edit_id]);
+        if ( false !== $result && $old_item && (float) $old_item->price !== (float) $data['price'] && function_exists( 'qrrs_audit' ) ) {
+            qrrs_audit( 'item_price_changed', 'menu_item', $edit_id, [ 'from' => (float) $old_item->price, 'to' => (float) $data['price'] ], (int) $old_item->restaurant_id );
+        }
         $status = ($result !== false) ? "updated" : "error";
         $saved_item_id = $edit_id;
     } else {

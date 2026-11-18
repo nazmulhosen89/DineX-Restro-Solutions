@@ -88,6 +88,7 @@ function qrrs_crm_handle_actions( $restaurant_id, $is_admin ) {
 
     if ( 'delete' === $action ) {
         $id = intval( $_POST['customer_id'] ?? 0 );
+        if ( function_exists( 'qrrs_audit' ) ) { qrrs_audit( 'crm_customer_deleted', 'customer', $id, [], $rid ); }
         $wpdb->delete( $t, [ 'id' => $id, 'restaurant_id' => $rid ] );
         qrrs_crm_redirect( 'deleted' );
     }

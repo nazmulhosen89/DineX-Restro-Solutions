@@ -307,6 +307,17 @@ function qrrs_submit_waiter_order() {
         }
     }
 
+    if ( function_exists( 'qrrs_audit' ) && in_array( $order_mode, [ 'add', 'edit' ], true ) ) {
+        $names = [];
+        foreach ( (array) $items as $it ) {
+            $names[] = ( $it['name'] ?? '' ) . ' x' . intval( $it['qty'] ?? 0 );
+        }
+        qrrs_audit( 'order_items_' . $order_mode, 'order', $order_id, [
+            'lines' => count( (array) $items ),
+            'total' => $grand_total,
+            'items' => mb_substr( implode( ', ', $names ), 0, 300 ),
+        ], $restaurant_id );
+    }
     wp_send_json_success(['order_id' => $order_id, 'message' => 'Success!']);
 }
 
@@ -327,7 +338,13 @@ function handle_waiter_status_update() {
     }
 
     $updated = $wpdb->update($wpdb->prefix.'qrrs_orders', $update, ['id' => $order_id]);
-    if ($updated !== false) wp_send_json_success('Status updated to '.$status);
+    if ($updated !== false) {
+        if ( function_exists( 'qrrs_audit' ) ) {
+            $rid_s = (int) $wpdb->get_var( $wpdb->prepare( "SELECT restaurant_id FROM {$wpdb->prefix}qrrs_orders WHERE id = %d", $order_id ) );
+            qrrs_audit( 'order_status_changed', 'order', $order_id, [ 'status' => $status, 'source' => 'waiter' ], $rid_s );
+        }
+        wp_send_json_success('Status updated to '.$status);
+    }
     else wp_send_json_error('Update failed: '.$wpdb->last_error);
 }
 

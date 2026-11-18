@@ -66,6 +66,7 @@ function qrrs_rooms_handle_post() {
         qrrs_rooms_redirect( 'qr_regenerated' );
     }
     if ( 'delete' === $action ) {
+        if ( function_exists( 'qrrs_audit' ) ) { qrrs_audit( 'room_deleted', 'room', $id, [], $rid ); }
         $wpdb->delete( $t, [ 'id' => $id, 'restaurant_id' => $rid ] );
         qrrs_rooms_redirect( 'room_deleted' );
     }

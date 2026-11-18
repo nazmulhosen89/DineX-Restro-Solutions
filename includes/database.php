@@ -415,6 +415,24 @@ class QRRS_Database {
         ) $charset_collate;";
 
         /**
+         * Audit log: who changed what, and when
+         */
+        $sql_audit = "CREATE TABLE {$prefix}audit_log (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            restaurant_id bigint(20) NOT NULL DEFAULT 0,
+            user_id bigint(20) NOT NULL DEFAULT 0,
+            user_name varchar(150) NOT NULL DEFAULT '',
+            action varchar(60) NOT NULL DEFAULT '',
+            entity varchar(40) NOT NULL DEFAULT '',
+            entity_id bigint(20) NOT NULL DEFAULT 0,
+            details text,
+            ip varchar(45) NOT NULL DEFAULT '',
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY restaurant_created (restaurant_id, created_at)
+        ) $charset_collate;";
+
+        /**
          * CRM: customers per restaurant (one row per mobile number)
          */
         $sql_customers = "CREATE TABLE {$prefix}customers (
@@ -597,6 +615,7 @@ class QRRS_Database {
         dbDelta( $sql_business_hours );
         dbDelta( $sql_delivery_areas );
         dbDelta( $sql_customers );
+        dbDelta( $sql_audit );
         dbDelta( $sql_rooms );
         dbDelta( $sql_stock_movements );
         dbDelta( $sql_requisitions );

@@ -32,6 +32,7 @@ add_action( 'admin_post_qrrs_backup_export', function () {
     }
     check_admin_referer( 'qrrs_backup_export' );
     global $wpdb;
+    if ( function_exists( 'qrrs_audit' ) ) { qrrs_audit( 'backup_downloaded', 'backup', 0, [], 0 ); }
 
     nocache_headers();
     $file = 'dinex-backup-' . current_time( 'Ymd-His' ) . '.json';

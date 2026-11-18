@@ -39,6 +39,7 @@ function qrrs_online_services_for( $restaurant_id ) {
 /** Saves the form. Returns a message key. */
 function qrrs_online_save( $restaurant_id ) {
     global $wpdb;
+    if ( function_exists( 'qrrs_audit' ) && ! empty( $_POST['online_action'] ) === false ) { qrrs_audit( 'online_settings_saved', 'restaurant', intval( $restaurant_id ), [], intval( $restaurant_id ) ); }
     $r_t = $wpdb->prefix . 'qrrs_restaurants';
     $h_t = $wpdb->prefix . 'qrrs_business_hours';
     $a_t = $wpdb->prefix . 'qrrs_delivery_areas';

@@ -25,6 +25,7 @@ if (!$active_res_id && !isset($_GET['action'])) {
  */
 if ( isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']) ) {
     $uid_to_delete = intval($_GET['id']);
+    if ( function_exists( 'qrrs_audit' ) ) { qrrs_audit( 'staff_removed', 'user', (int) $uid_to_delete, [], 0 ); }
     $wpdb->delete($staff_table, ['user_id' => $uid_to_delete]);
     require_once(ABSPATH . 'wp-admin/includes/user.php');
     wp_delete_user( $uid_to_delete );
@@ -78,6 +79,7 @@ if ( isset($_POST['save_staff']) ) {
         $staff_rows = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM $staff_table WHERE user_id = %d ORDER BY id DESC", $sid ) );
         if ( ! empty( $staff_rows ) ) {
             $wpdb->update( $staff_table, $staff_fields, [ 'id' => intval( $staff_rows[0] ) ], [ '%d', '%s', '%s' ], [ '%d' ] );
+            if ( function_exists( 'qrrs_audit' ) ) { qrrs_audit( 'staff_updated', 'user', (int) $sid, [ 'role' => $staff_role, 'status' => $status ], $restaurant_id ); }
             if ( count( $staff_rows ) > 1 ) {
                 $wpdb->query( $wpdb->prepare( "DELETE FROM $staff_table WHERE user_id = %d AND id <> %d", $sid, intval( $staff_rows[0] ) ) );
             }

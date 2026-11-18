@@ -139,6 +139,7 @@ add_action( 'admin_post_qrrs_restore_run', function () {
     file_put_contents( qrrs_private_dir() . '/' . $pre, wp_json_encode( qrrs_backup_payload() ) );
     set_transient( 'qrrs_restore_prefile_' . $uid, $pre, 60 * MINUTE_IN_SECONDS );
 
+    if ( function_exists( 'qrrs_audit' ) ) { qrrs_audit( 'restore_run', 'backup', 0, [ 'file' => $name ], 0 ); }
     $result = qrrs_restore_apply( $data );
     delete_transient( 'qrrs_restore_pending_' . $uid );
     @unlink( $path );
