@@ -123,7 +123,8 @@ function qrrs_pl_render( $rid ) {
             <label style="font-size:13px; color:#64748b;">To</label><input type="date" name="pl_to" value="<?php echo esc_attr( $to ); ?>" style="<?php echo $inp; ?>">
             <button type="submit" style="padding:9px 14px; background:#2563eb; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer;">Show</button>
         </form>
-        <table style="width:100%; max-width:640px; border-collapse:collapse; font-size:14px; margin-bottom:14px;">
+        <?php if ( function_exists( 'qrrs_export_buttons' ) ) { qrrs_export_buttons( 'pl-table', 'Profit & Loss', 'Period: ' . $from . ' to ' . $to, 'profit-loss' ); } ?>
+        <table id="pl-table" style="width:100%; max-width:640px; border-collapse:collapse; font-size:14px; margin-bottom:14px;">
             <tbody>
                 <tr style="border-top:1px solid #f1f5f9;"><td style="padding:9px;">Bills paid (<?php echo intval( $d['bills'] ); ?>)</td><td style="padding:9px; text-align:right;"><?php echo $money( $d['gross'] ); ?></td></tr>
                 <tr><td style="padding:9px; color:#64748b;">Less VAT &amp; service charge</td><td style="padding:9px; text-align:right; color:#64748b;">− <?php echo $money( $d['taxes'] ); ?></td></tr>

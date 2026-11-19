@@ -51,6 +51,22 @@ function qrrs_closing_expected( $rid, $date ) {
     $by_method = array_values( $merged );
     usort( $by_method, function ( $a, $b ) { return $b->total <=> $a->total; } );
 
+    // Customer due repayments received on this day
+    $due_in = $wpdb->get_results( $wpdb->prepare(
+        "SELECT method, COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM {$p}qrrs_due_payments
+         WHERE restaurant_id = %d AND paid_on = %s GROUP BY method",
+        intval( $rid ), $date
+    ) );
+    $merged_due = [];
+    foreach ( array_merge( (array) $by_method, (array) $due_in ) as $r ) {
+        $k = $r->method;
+        if ( ! isset( $merged_due[ $k ] ) ) $merged_due[ $k ] = (object) [ 'method' => $k, 'n' => 0, 'total' => 0.0 ];
+        $merged_due[ $k ]->n     += (int) $r->n;
+        $merged_due[ $k ]->total += (float) $r->total;
+    }
+    $by_method = array_values( $merged_due );
+    usort( $by_method, function ( $a, $b ) { return $b->total <=> $a->total; } );
+
     $collected = 0.0; $cash = 0.0;
     foreach ( $by_method as $m ) {
         $collected += (float) $m->total;
@@ -136,7 +152,8 @@ function qrrs_closing_render( $rid ) {
             </form>
         </div>
 
-        <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:14px;">
+        <?php if ( function_exists( 'qrrs_export_buttons' ) ) { qrrs_export_buttons( 'closing-table', 'Daily closing', 'Date: ' . $date, 'daily-closing-' . $date ); } ?>
+        <table id="closing-table" style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:14px;">
             <thead><tr style="text-align:left; color:#94a3b8; font-size:11px; text-transform:uppercase; background:#f8fafc;">
                 <th style="padding:10px;">Method</th><th style="padding:10px;">Payments</th><th style="padding:10px; text-align:right;">Amount</th>
             </tr></thead>

@@ -494,7 +494,7 @@ function qrrs_inventory_render_requisition_panel( $forced_department = '' ) {
  * Bump QRRS_SCHEMA_VERSION whenever a table or column is added.
  */
 if ( ! defined( 'QRRS_SCHEMA_VERSION' ) ) {
-    define( 'QRRS_SCHEMA_VERSION', '2026.11.09-23' );
+    define( 'QRRS_SCHEMA_VERSION', '2026.11.09-24' );
 }
 add_action( 'init', function () {
     if ( get_option( 'qrrs_schema_version' ) === QRRS_SCHEMA_VERSION ) {

@@ -490,6 +490,37 @@ class QRRS_Database {
         ) $charset_collate;";
 
         /**
+         * Customer due (বাকি) and repayments
+         */
+        $sql_dues = "CREATE TABLE {$prefix}dues (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            restaurant_id bigint(20) NOT NULL,
+            customer_key varchar(190) NOT NULL,
+            customer_name varchar(150) NOT NULL DEFAULT '',
+            phone varchar(20) NOT NULL DEFAULT '',
+            amount decimal(12,2) NOT NULL DEFAULT 0.00,
+            note varchar(255) NOT NULL DEFAULT '',
+            due_on date NOT NULL,
+            created_by bigint(20) NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY restaurant_customer (restaurant_id, customer_key)
+        ) $charset_collate;";
+        $sql_due_payments = "CREATE TABLE {$prefix}due_payments (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            restaurant_id bigint(20) NOT NULL,
+            customer_key varchar(190) NOT NULL,
+            amount decimal(12,2) NOT NULL DEFAULT 0.00,
+            method varchar(30) NOT NULL DEFAULT 'cash',
+            reference varchar(100) NOT NULL DEFAULT '',
+            paid_on date NOT NULL,
+            created_by bigint(20) NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY restaurant_customer (restaurant_id, customer_key)
+        ) $charset_collate;";
+
+        /**
          * Audit log: who changed what, and when
          */
         $sql_audit = "CREATE TABLE {$prefix}audit_log (
@@ -695,6 +726,8 @@ class QRRS_Database {
         dbDelta( $sql_closings );
         dbDelta( $sql_expenses );
         dbDelta( $sql_supplier_pay );
+        dbDelta( $sql_dues );
+        dbDelta( $sql_due_payments );
         dbDelta( $sql_rooms );
         dbDelta( $sql_stock_movements );
         dbDelta( $sql_requisitions );
