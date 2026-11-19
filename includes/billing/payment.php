@@ -62,10 +62,20 @@ if ( isset($_POST['complete_order_id']) ) {
 
         $actual_collection = ($amount_received > $final_total) ? $final_total : $amount_received;
 
+        // Self-service orders: after the counter payment, the kitchen takes over
+        $cur_src    = (string) $wpdb->get_var( $wpdb->prepare( "SELECT order_source FROM $orders_table WHERE id = %d", $order_to_complete ) );
+        $cur_status = (string) $wpdb->get_var( $wpdb->prepare( "SELECT order_status FROM $orders_table WHERE id = %d", $order_to_complete ) );
+        $was_self   = ( 'self' === $cur_src && 'awaiting_payment' === $cur_status );
+        $settle_status = 'completed';
+        if ( $was_self ) {
+            $ks_s = qrrs_get_restaurant_kitchen_settings( $active_res_id );
+            $settle_status = ( 'ready_food' === ( $ks_s['mode'] ?? '' ) ) ? 'ready' : 'pending';
+        }
+
         $wpdb->update(
             $orders_table,
             array(
-                'order_status'    => 'completed',
+                'order_status'    => $settle_status,
                 'payment_status'  => 'paid',
                 'discount_amount' => $discount_amount,
                 'final_total'     => $final_total,
@@ -94,7 +104,7 @@ $billing_stats = $wpdb->get_row($wpdb->prepare("
         COUNT(id) as total_orders,
         SUM(CASE WHEN order_status IN ('pending', 'processing') THEN 1 ELSE 0 END) as pending_orders,
         SUM(CASE WHEN order_status = 'completed' THEN COALESCE(final_total, grand_total) ELSE 0 END) as total_collection,
-        SUM(CASE WHEN order_status IN ('ready', 'settle_bill', 'served', 'billing', 'out_for_delivery', 'delivered') THEN grand_total ELSE 0 END) as pending_collection,
+        SUM(CASE WHEN order_status IN ('ready', 'settle_bill', 'served', 'billing', 'out_for_delivery', 'delivered') AND COALESCE(payment_status,'') <> 'paid' THEN grand_total ELSE 0 END) as pending_collection,
         AVG(CASE WHEN order_status = 'completed' THEN COALESCE(final_total, grand_total) END) as avg_order
     FROM $orders_table 
     WHERE restaurant_id = %d AND DATE(created_at) = %s", $active_res_id, $today));
@@ -103,7 +113,7 @@ $settle_orders = $wpdb->get_results($wpdb->prepare(
     "SELECT id, table_name, grand_total, created_at, order_status 
     FROM $orders_table 
     WHERE restaurant_id = %d 
-    AND order_status IN ('ready', 'settle_bill', 'served', 'billing', 'out_for_delivery', 'delivered') 
+    AND order_status IN ('ready', 'settle_bill', 'served', 'billing', 'out_for_delivery', 'delivered') AND COALESCE(payment_status,'') <> 'paid' 
     AND DATE(created_at) = %s 
     ORDER BY FIELD(order_status, 'billing', 'settle_bill', 'delivered', 'out_for_delivery', 'ready', 'served'), id DESC",
     $active_res_id, $today
@@ -752,6 +762,11 @@ function splitSubmitNow() {
 
 splitRenderLines(_splitInit);
 splitUpdateUI();
+<?php if ( ! empty( $order ) && 'self' === $order->order_source && 'awaiting_payment' === $order->order_status ) : ?>
+if ( new URLSearchParams( window.location.search ).get('self_pay') === '1' ) {
+    setTimeout( function () { openPaymentModal(<?php echo intval( $order->id ); ?>, <?php echo floatval( $order->grand_total ); ?>, '<?php echo esc_js( $full_invoice_no ); ?>', '<?php echo esc_js( $order->table_name ); ?>'); }, 300 );
+}
+<?php endif; ?>
 
 function printReceipt() {
     window.print();

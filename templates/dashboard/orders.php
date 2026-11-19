@@ -173,7 +173,7 @@ function loadAllOrders() {
             } else if (o.status === 'processing') {
                 footerHtml = `<button onclick="updateDashStatus(${o.id}, 'ready')" class="dash-btn btn-ready" style="width:100%"><span class="material-icons-outlined">check_box</span> Order Ready</button>`;
             } else if (o.status === 'awaiting_payment') {
-                footerHtml = `<button onclick="confirmSelfPayment(${o.id})" class="dash-btn btn-ready" style="width:100%"><span class="material-icons-outlined">payments</span> Payment received · Print token</button>`;
+                footerHtml = `<button onclick="collectSelfPayment(${o.id})" class="dash-btn btn-ready" style="width:100%"><span class="material-icons-outlined">payments</span> Collect payment · Print token</button>`;
             } else if (o.status === 'ready' && o.table_name === 'Delivery') {
                 footerHtml = `<button onclick="updateDashStatus(${o.id}, 'out_for_delivery')" class="dash-btn btn-serve" style="width:100%"><span class="material-icons-outlined">delivery_dining</span> Out for delivery</button>`;
             } else if (o.status === 'out_for_delivery') {
@@ -182,6 +182,8 @@ function loadAllOrders() {
                 footerHtml = `<button onclick="updateDashStatus(${o.id}, 'completed')" class="dash-btn btn-ready" style="width:100%"><span class="material-icons-outlined">payments</span> Cash collected · Complete</button>`;
             } else if (o.status === 'ready') {
                 footerHtml = `<button onclick="updateDashStatus(${o.id}, 'served')" class="dash-btn btn-serve" style="width:100%"><span class="material-icons-outlined">dinner_dining</span> Order Served</button>`;
+            } else if (o.status === 'served' && o.paid) {
+                footerHtml = `<button onclick="updateDashStatus(${o.id}, 'completed')" class="dash-btn btn-ready" style="width:100%"><span class="material-icons-outlined">check_circle</span> Complete order</button>`;
             } else if (o.status === 'served') {
                 footerHtml = `<button onclick="updateDashStatus(${o.id}, 'billing')" class="dash-btn btn-finalize" style="width:100%; background:#d35400; color:#fff;"><span class="material-icons-outlined">receipt_long</span> Close Order</button>`;
             } else if (o.status === 'billing') {
@@ -251,6 +253,17 @@ function printKot(orderId) {
         } else {
             alert((res && res.data) ? res.data : 'Could not print the KOT.');
         }
+    });
+}
+
+function collectSelfPayment(orderId) {
+    jQuery.post(qrrs_vars.ajax_url, { action: 'qrrs_self_slip', order_id: orderId, security: qr_nonce }, function (res) {
+        if (res && res.success) {
+            var w = window.open('', '_blank');
+            w.document.write(res.data.html);
+            w.document.close();
+        }
+        window.location.href = window.location.pathname + '?tab=billing&order_id=' + orderId + '&self_pay=1';
     });
 }
 

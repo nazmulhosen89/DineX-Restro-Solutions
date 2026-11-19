@@ -281,6 +281,7 @@ if ( $order_datetime ) {
             'placement_time' => $placement_time,
             'time_ago'       => $time_diff_text,
             'ready_due_ts'   => qrrs_ready_due_ts_by_id( $order->id ),
+            'paid'           => 'paid' === (string) $wpdb->get_var( $wpdb->prepare( "SELECT payment_status FROM {$wpdb->prefix}qrrs_orders WHERE id = %d", intval( $order->id ) ) ),
             'server_now'     => time(),
             'items'          => $items_data
         ];

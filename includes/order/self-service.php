@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
  *     and a token slip is printed through the browser print dialog.
  */
 
-function qrrs_self_slip_html( $order_id ) {
+function qrrs_self_slip_html( $order_id, $paid = true ) {
     global $wpdb;
     $o  = $wpdb->prefix . 'qrrs_orders';
     $oi = $wpdb->prefix . 'qrrs_order_items';
@@ -49,7 +49,11 @@ function qrrs_self_slip_html( $order_id ) {
 <?php endforeach; ?>
 <hr>
 <div class="row"><strong>Total</strong><strong><?php echo esc_html( number_format( (float) $order->grand_total, 2 ) ); ?></strong></div>
-<div class="row"><span>Paid (cash)</span><span><?php echo esc_html( number_format( (float) $order->grand_total, 2 ) ); ?></span></div>
+<?php if ( $paid ) : ?>
+<div class="row"><span>Paid</span><span><?php echo esc_html( number_format( (float) $order->grand_total, 2 ) ); ?></span></div>
+<?php else : ?>
+<div class="c" style="margin-top:6px;">Pay at the counter</div>
+<?php endif; ?>
 <hr>
 <div class="c">Thank you for visiting!</div>
 <div class="c" style="margin-top:6px;">Developed for <?php echo esc_html( $hotel ); ?></div>
@@ -91,3 +95,12 @@ function qrrs_ajax_confirm_self_payment() {
     wp_send_json_success( [ 'slip' => qrrs_self_slip_html( $order_id ) ] );
 }
 add_action( 'wp_ajax_qrrs_confirm_self_payment', 'qrrs_ajax_confirm_self_payment' );
+
+// Token slip before payment (printed when the counter collects the payment)
+add_action( 'wp_ajax_qrrs_self_slip', function () {
+    check_ajax_referer( 'qr_order_nonce', 'security' );
+    if ( ! is_user_logged_in() ) wp_send_json_error( 'Please log in again.' );
+    $html = qrrs_self_slip_html( intval( $_POST['order_id'] ?? 0 ), false );
+    if ( '' === $html ) wp_send_json_error( 'Order not found.' );
+    wp_send_json_success( [ 'html' => $html ] );
+} );
