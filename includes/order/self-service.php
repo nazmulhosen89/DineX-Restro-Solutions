@@ -89,6 +89,17 @@ function qrrs_ajax_confirm_self_payment() {
         'amount_received'     => $total,
         'cash_returned'       => 0,
     ], [ 'id' => $order_id ] );
+    if ( function_exists( 'qrrs_payment_methods' ) && 0 === qrrs_payments_sum( $order_id ) ) {
+        $wpdb->insert( $wpdb->prefix . 'qrrs_payments', [
+            'order_id'      => $order_id,
+            'restaurant_id' => (int) $order->restaurant_id,
+            'method'        => 'cash',
+            'amount'        => $total,
+            'reference'     => '',
+            'created_by'    => get_current_user_id(),
+            'created_at'    => current_time( 'mysql' ),
+        ] );
+    }
     if ( false === $ok ) {
         wp_send_json_error( 'Could not confirm the payment. Please try again.' );
     }

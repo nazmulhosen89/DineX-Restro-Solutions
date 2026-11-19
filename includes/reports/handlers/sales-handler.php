@@ -233,8 +233,7 @@ function handle_fetch_sales_report_data() {
     <?php endif;
 
     $output = ob_get_clean();
+    $output .= function_exists( 'qrrs_sales_methods_html' ) ? qrrs_sales_methods_html( $res_id, $start_date, $end_date ) : '';
     wp_send_json_success(['data' => $output]);
 }
 add_action('wp_ajax_fetch_sales_report_data', 'handle_fetch_sales_report_data');
-
-

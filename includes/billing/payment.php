@@ -88,6 +88,20 @@ if ( isset($_POST['complete_order_id']) ) {
             array('%d', '%d')
         );
 
+        // Record the payment as a line (single payment too), so the daily closing counts it by method
+        if ( function_exists( 'qrrs_payments_sum' ) && 0 === qrrs_payments_sum( $order_to_complete ) ) {
+            $line_method = array_key_exists( $payment_method, qrrs_payment_methods() ) ? $payment_method : 'other';
+            $wpdb->insert( $wpdb->prefix . 'qrrs_payments', [
+                'order_id'      => $order_to_complete,
+                'restaurant_id' => intval( $active_res_id ),
+                'method'        => $line_method,
+                'amount'        => $final_total,
+                'reference'     => '',
+                'created_by'    => get_current_user_id(),
+                'created_at'    => current_time( 'mysql' ),
+            ] );
+        }
+
         ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {

@@ -438,6 +438,40 @@ class QRRS_Database {
         ) $charset_collate;";
 
         /**
+         * Daily closing: one row per restaurant per day
+         */
+        $sql_closings = "CREATE TABLE {$prefix}day_closings (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            restaurant_id bigint(20) NOT NULL,
+            closing_date date NOT NULL,
+            expected_cash decimal(10,2) NOT NULL DEFAULT 0.00,
+            counted_cash decimal(10,2) NOT NULL DEFAULT 0.00,
+            difference decimal(10,2) NOT NULL DEFAULT 0.00,
+            net_total decimal(10,2) NOT NULL DEFAULT 0.00,
+            note varchar(255) NOT NULL DEFAULT '',
+            closed_by bigint(20) NOT NULL DEFAULT 0,
+            closed_at datetime DEFAULT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY restaurant_day (restaurant_id, closing_date)
+        ) $charset_collate;";
+
+        /**
+         * Expenses (rent, electricity, salary ...) for the Profit & Loss report
+         */
+        $sql_expenses = "CREATE TABLE {$prefix}expenses (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            restaurant_id bigint(20) NOT NULL,
+            expense_date date NOT NULL,
+            category varchar(60) NOT NULL DEFAULT 'Other',
+            note varchar(255) NOT NULL DEFAULT '',
+            amount decimal(10,2) NOT NULL DEFAULT 0.00,
+            created_by bigint(20) NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY restaurant_date (restaurant_id, expense_date)
+        ) $charset_collate;";
+
+        /**
          * Audit log: who changed what, and when
          */
         $sql_audit = "CREATE TABLE {$prefix}audit_log (
@@ -640,6 +674,8 @@ class QRRS_Database {
         dbDelta( $sql_customers );
         dbDelta( $sql_audit );
         dbDelta( $sql_payments );
+        dbDelta( $sql_closings );
+        dbDelta( $sql_expenses );
         dbDelta( $sql_rooms );
         dbDelta( $sql_stock_movements );
         dbDelta( $sql_requisitions );

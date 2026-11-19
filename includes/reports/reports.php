@@ -27,7 +27,7 @@ if ( ! $active_res_id ) {
 
 $active_res_name = get_qrrs_active_restaurant_name();
 $is_pro = function_exists( 'qrrs_is_pro' ) ? qrrs_is_pro() : true;
-$default_report_section = $is_pro ? 'overview' : 'sales';
+$default_report_section = ( isset( $_GET['rs'] ) && 'profit' === $_GET['rs'] ) ? 'profit' : ( $is_pro ? 'overview' : 'sales' );
 $pro_only_sections = [ 'overview', 'orders', 'items', 'kitchen', 'staff', 'payment', 'tax' ];
 ?>
 
@@ -96,6 +96,10 @@ $pro_only_sections = [ 'overview', 'orders', 'items', 'kitchen', 'staff', 'payme
             <div class="card-icon">💳</div>
             <div class="card-info"><h3>Payment Report <?php echo ! $is_pro ? '<span class="qrrs-pro-badge">Pro</span>' : ''; ?></h3><p>Method Breakdown</p></div>
         </div>
+        <div class="report-card <?php echo 'profit' === $default_report_section ? 'active' : ''; ?>" data-target="profit">
+            <div class="card-icon">📒</div>
+            <div class="card-info"><h3>Profit &amp; Loss</h3><p>Expenses, gross and net profit</p></div>
+        </div>
         <div class="report-card <?php echo ! $is_pro ? 'qrrs-pro-locked' : ''; ?>" data-target="tax">
             <div class="card-icon">📜</div>
             <div class="card-info"><h3>VAT/Service <?php echo ! $is_pro ? '<span class="qrrs-pro-badge">Pro</span>' : ''; ?></h3><p>Tax & Charges</p></div>
@@ -107,7 +111,7 @@ $pro_only_sections = [ 'overview', 'orders', 'items', 'kitchen', 'staff', 'payme
     <!-- Dynamic Content Area -->
     <div class="report-content-area">
         <?php 
-        $sections = ['overview', 'sales', 'orders', 'items', 'kitchen', 'staff', 'payment', 'tax'];
+        $sections = ['overview', 'sales', 'orders', 'items', 'kitchen', 'staff', 'payment', 'tax', 'profit'];
 
         foreach ($sections as $section) {
             $class = ($section === $default_report_section) ? 'active' : '';
@@ -162,4 +166,3 @@ jQuery(document).ready(function($) {
     });
 });
 </script>
-
