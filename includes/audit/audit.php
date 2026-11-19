@@ -1,12 +1,6 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-/**
- * Audit log: who changed what, and when.
- *  - Written by qrrs_audit() from each important action.
- *  - Viewed by the administrator on the Audit page. Rows are never edited from the screen.
- */
-
 function qrrs_audit( $action, $entity = '', $entity_id = 0, $details = [], $restaurant_id = 0 ) {
     global $wpdb;
     $uid  = get_current_user_id();
@@ -24,7 +18,6 @@ function qrrs_audit( $action, $entity = '', $entity_id = 0, $details = [], $rest
     ] );
 }
 
-// Order status changes and cancellations
 add_action( 'qrrs_order_status_changed', function ( $order_id, $status ) {
     global $wpdb;
     $o = $wpdb->get_row( $wpdb->prepare( "SELECT restaurant_id, table_name, grand_total FROM {$wpdb->prefix}qrrs_orders WHERE id = %d", intval( $order_id ) ) );
@@ -49,65 +42,215 @@ function qrrs_audit_action_label( $action ) {
     return $map[ $action ] ?? $action;
 }
 
-/** Audit page (administrator only). */
+/** Audit page with dynamic pagination & per-page selection */
 function qrrs_audit_render( $restaurant_id ) {
     global $wpdb;
     if ( ! current_user_can( 'administrator' ) ) {
-        echo '<div class="qrrs-card" style="padding:20px;">The audit log is for the administrator only.</div>';
+        echo '<div class="qrrs-restricted-box">
+                <div class="qrrs-restricted-icon">🔒</div>
+                <h3>Restricted Access</h3>
+                <p>The audit log is securely restricted for administrators only.</p>
+              </div>';
         return;
     }
-    $rid    = intval( $restaurant_id );
-    $from   = sanitize_text_field( $_GET['aud_from'] ?? '' );
-    $to     = sanitize_text_field( $_GET['aud_to'] ?? '' );
-    $action = sanitize_key( $_GET['aud_action'] ?? '' );
+    
+    $rid      = intval( $restaurant_id );
+    $from     = sanitize_text_field( $_GET['aud_from'] ?? '' );
+    $to       = sanitize_text_field( $_GET['aud_to'] ?? '' );
+    $action   = sanitize_key( $_GET['aud_action'] ?? '' );
+    
+    // Pagination variables
+    $per_page = $_GET['aud_per_page'] ?? '25';
+    $paged    = max( 1, intval( $_GET['aud_page'] ?? 1 ) );
+    
     $where  = [ $wpdb->prepare( 'restaurant_id = %d', $rid ) ];
     if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $from ) ) $where[] = $wpdb->prepare( 'created_at >= %s', $from . ' 00:00:00' );
     if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $to ) )   $where[] = $wpdb->prepare( 'created_at <= %s', $to . ' 23:59:59' );
     if ( $action )                                       $where[] = $wpdb->prepare( 'action = %s', $action );
-    $rows = $wpdb->get_results( 'SELECT * FROM ' . $wpdb->prefix . 'qrrs_audit_log WHERE ' . implode( ' AND ', $where ) . ' ORDER BY id DESC LIMIT 300' );
-    $actions = $wpdb->get_col( $wpdb->prepare( 'SELECT DISTINCT action FROM ' . $wpdb->prefix . 'qrrs_audit_log WHERE restaurant_id = %d', $rid ) );
-    $base = add_query_arg( [ 'tab' => 'audit' ], home_url( '/restaurant-dashboard/' ) );
-    $inp  = 'padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px;';
+    
+    $where_sql = implode( ' AND ', $where );
+
+    // Total count for pagination calculation
+    $total_rows = $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}qrrs_audit_log WHERE {$where_sql}" );
+
+    // Limit and Offset setup
+    if ( $per_page === 'all' ) {
+        $limit_sql = '';
+    } else {
+        $limit_num = intval( $per_page );
+        if ( ! in_array( $limit_num, [ 25, 50, 100, 150 ] ) ) {
+            $limit_num = 25;
+        }
+        $offset    = ( $paged - 1 ) * $limit_num;
+        $limit_sql = $wpdb->prepare( " LIMIT %d OFFSET %d", $limit_num, $offset );
+    }
+    
+    $rows = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}qrrs_audit_log WHERE {$where_sql} ORDER BY id DESC {$limit_sql}" );
+    $actions = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT action FROM {$wpdb->prefix}qrrs_audit_log WHERE restaurant_id = %d", $rid ) );
+    
+    // Base URL for links retaining filter state
+    $base_params = [ 'tab' => 'audit', 'aud_from' => $from, 'aud_to' => $to, 'aud_action' => $action, 'aud_per_page' => $per_page ];
+    $base = add_query_arg( $base_params, home_url( '/restaurant-dashboard/' ) );
+    
+    // Pagination calculation
+    $total_pages = ( $per_page === 'all' || intval( $per_page ) <= 0 ) ? 1 : ceil( $total_rows / intval( $per_page ) );
     ?>
-    <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden;">
-        <div style="padding:18px 24px; background:#f8fafc; border-bottom:1px solid #e2e8f0;">
-            <h3 style="margin:0; font-size:20px; color:#1e293b;">Audit log</h3>
-            <p style="margin:4px 0 0; font-size:13px; color:#64748b;">Who changed what, and when. Latest 300 entries.</p>
+    <div class="qrrs-audit-wrapper">
+        
+        <!-- Header Section -->
+        <div class="qrrs-audit-header">
+            <div>
+                <h2>🛡️ Advanced Change Tracker</h2>
+                <p>Track absolute security actions, user activities, and live changes.</p>
+            </div>
+            <div class="qrrs-audit-badge">
+                Total Records: <?php echo intval( $total_rows ); ?>
+            </div>
         </div>
-        <form method="get" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; padding:16px 24px; border-bottom:1px solid #f1f5f9;">
+
+        <!-- Filter & Per-Page Form -->
+        <form method="get" class="qrrs-audit-form">
             <input type="hidden" name="tab" value="audit">
-            <div><label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">From</label><input type="date" name="aud_from" value="<?php echo esc_attr( $from ); ?>" style="<?php echo $inp; ?>"></div>
-            <div><label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">To</label><input type="date" name="aud_to" value="<?php echo esc_attr( $to ); ?>" style="<?php echo $inp; ?>"></div>
-            <div><label style="font-size:12px; font-weight:700; display:block; margin-bottom:4px;">Action</label>
-                <select name="aud_action" style="<?php echo $inp; ?>"><option value="">All actions</option>
-                    <?php foreach ( $actions as $a ) : ?><option value="<?php echo esc_attr( $a ); ?>" <?php selected( $action, $a ); ?>><?php echo esc_html( qrrs_audit_action_label( $a ) ); ?></option><?php endforeach; ?>
-                </select></div>
-            <button type="submit" style="background:#2563eb; color:#fff; border:none; padding:9px 16px; border-radius:8px; font-weight:600; cursor:pointer;">Filter</button>
-            <a href="<?php echo esc_url( $base ); ?>" style="padding:9px 4px; color:#64748b; font-size:13px;">Reset</a>
+            <input type="hidden" name="aud_page" value="1"> <!-- Reset to page 1 on new filter -->
+            
+            <div class="qrrs-form-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) 130px 140px;">
+                <div>
+                    <label>From Date</label>
+                    <input type="date" name="aud_from" value="<?php echo esc_attr( $from ); ?>">
+                </div>
+                
+                <div>
+                    <label>To Date</label>
+                    <input type="date" name="aud_to" value="<?php echo esc_attr( $to ); ?>">
+                </div>
+                
+                <div>
+                    <label>Action Type</label>
+                    <select name="aud_action">
+                        <option value="">⚡ All Actions</option>
+                        <?php foreach ( $actions as $a ) : ?>
+                            <option value="<?php echo esc_attr( $a ); ?>" <?php selected( $action, $a ); ?>><?php echo esc_html( qrrs_audit_action_label( $a ) ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div>
+                    <label>Rows per page</label>
+                    <select name="aud_per_page">
+                        <?php foreach ( ['25', '50', '100', '150', 'all'] as $val ) : ?>
+                            <option value="<?php echo $val; ?>" <?php selected( $per_page, $val ); ?>><?php echo ($val === 'all') ? 'All' : $val; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                
+                <div class="qrrs-form-actions">
+                    <button type="submit" class="qrrs-btn-primary">Filter</button>
+                    <a href="<?php echo esc_url( add_query_arg( ['tab' => 'audit'], home_url( '/restaurant-dashboard/' ) ) ); ?>" class="qrrs-btn-secondary">Reset</a>
+                </div>
+            </div>
         </form>
-        <div style="overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse; font-size:13px;">
-            <thead><tr style="text-align:left; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; background:#f8fafc;">
-                <th style="padding:12px 16px;">When</th><th style="padding:12px 8px;">Who</th><th style="padding:12px 8px;">Action</th><th style="padding:12px 8px;">Item</th><th style="padding:12px 16px;">Details</th>
-            </tr></thead>
-            <tbody>
-            <?php foreach ( $rows as $r ) : $d = json_decode( (string) $r->details, true ) ?: []; ?>
-                <tr style="border-top:1px solid #f1f5f9;">
-                    <td style="padding:10px 16px; white-space:nowrap; color:#334155;"><?php echo esc_html( $r->created_at ); ?></td>
-                    <td style="padding:10px 8px;"><?php echo esc_html( $r->user_name ); ?></td>
-                    <td style="padding:10px 8px; font-weight:600; color:#1e293b;"><?php echo esc_html( qrrs_audit_action_label( $r->action ) ); ?></td>
-                    <td style="padding:10px 8px; color:#64748b;"><?php echo esc_html( $r->entity ? $r->entity . ' #' . $r->entity_id : '—' ); ?></td>
-                    <td style="padding:10px 16px; color:#475569; font-size:12px;"><?php
-                        $parts = [];
-                        foreach ( $d as $k => $v ) { $parts[] = $k . ': ' . ( is_scalar( $v ) ? $v : wp_json_encode( $v ) ); }
-                        echo esc_html( implode( ' · ', $parts ) ?: '—' );
-                    ?></td>
-                </tr>
-            <?php endforeach; ?>
-            <?php if ( empty( $rows ) ) : ?><tr><td colspan="5" style="padding:30px; text-align:center; color:#94a3b8;">No entries for this filter.</td></tr><?php endif; ?>
-            </tbody>
-        </table>
+
+        <!-- Data Table Container -->
+        <div class="qrrs-table-container">
+            <div class="qrrs-table-responsive">
+                <table class="qrrs-audit-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>User / Actor</th>
+                            <th>Action Type</th>
+                            <th>Target Entity</th>
+                            <th>Details & Context</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php 
+                    if ( ! empty( $rows ) ) :
+                        foreach ( $rows as $r ) : 
+                            $d = json_decode( (string) $r->details, true ) ?: [];
+                            $action_raw = $r->action;
+                            $badge_class = 'badge-default';
+                            if(strpos($action_raw, 'cancelled') !== false || strpos($action_raw, 'deleted') !== false) { $badge_class = 'badge-danger'; }
+                            elseif(strpos($action_raw, 'added') !== false) { $badge_class = 'badge-success'; }
+                            elseif(strpos($action_raw, 'updated') !== false) { $badge_class = 'badge-warning'; }
+                    ?>
+                        <tr>
+                            <td class="col-time">
+                                <div class="time-primary"><?php echo esc_html( date('M j, Y', strtotime($r->created_at)) ); ?></div>
+                                <div class="time-secondary"><?php echo esc_html( date('h:i:s A', strtotime($r->created_at)) ); ?></div>
+                            </td>
+                            <td class="col-user">
+                                <div class="user-info">
+                                    <span class="user-avatar"><?php echo strtoupper(substr($r->user_name, 0, 1)); ?></span>
+                                    <span class="user-name"><?php echo esc_html( $r->user_name ); ?></span>
+                                </div>
+                            </td>
+                            <td class="col-action">
+                                <span class="qrrs-badge <?php echo $badge_class; ?>">
+                                    <?php echo esc_html( qrrs_audit_action_label( $r->action ) ); ?>
+                                </span>
+                            </td>
+                            <td class="col-entity">
+                                <?php if($r->entity): ?>
+                                    <code><?php echo esc_html( ucfirst($r->entity) . ' #' . $r->entity_id ); ?></code>
+                                <?php else: ?>
+                                    <span class="text-muted">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="col-details">
+                                <?php 
+                                if ( ! empty( $d ) ) {
+                                    echo '<div class="details-pills-wrap">';
+                                    foreach ( $d as $k => $v ) {
+                                        $val_str = is_scalar( $v ) ? $v : wp_json_encode( $v );
+                                        echo '<span class="detail-pill"><strong>' . esc_html($k) . ':</strong> ' . esc_html($val_str) . '</span>';
+                                    }
+                                    echo '</div>';
+                                } else {
+                                    echo '<span class="text-muted">No metadata</span>';
+                                }
+                                ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php else : ?>
+                        <tr>
+                            <td colspan="5" class="qrrs-empty-state">
+                                <div class="empty-icon">🔍</div>
+                                <div class="empty-title">No audit trail entries found</div>
+                                <div class="empty-subtitle">Try adjusting your date range or action filters.</div>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination Footer Controls -->
+            <?php if ( $total_pages > 1 ) : ?>
+                <div class="qrrs-pagination-bar">
+                    <span class="pagination-info">Page <?php echo $paged; ?> of <?php echo $total_pages; ?></span>
+                    <div class="pagination-links">
+                        <?php if ( $paged > 1 ) : ?>
+                            <a href="<?php echo esc_url( add_query_arg( [ 'aud_page' => $paged - 1 ], $base ) ); ?>" class="page-btn">Previous</a>
+                        <?php endif; ?>
+                        
+                        <?php 
+                        // Show smart page numbers links
+                        for ( $i = max( 1, $paged - 2 ); $i <= min( $total_pages, $paged + 2 ); $i++ ) : 
+                        ?>
+                            <a href="<?php echo esc_url( add_query_arg( [ 'aud_page' => $i ], $base ) ); ?>" class="page-btn <?php echo ($i === $paged) ? 'active' : ''; ?>"><?php echo $i; ?></a>
+                        <?php endfor; ?>
+
+                        <?php if ( $paged < $total_pages ) : ?>
+                            <a href="<?php echo esc_url( add_query_arg( [ 'aud_page' => $paged + 1 ], $base ) ); ?>" class="page-btn">Next</a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+
         </div>
+
     </div>
     <?php
 }

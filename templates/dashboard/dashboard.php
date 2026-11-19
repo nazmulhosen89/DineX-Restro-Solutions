@@ -187,7 +187,7 @@ $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'report
                 <?php if ( current_user_can( 'administrator' ) ) : ?>
                     <li class="admin-menu-item"><a href="?tab=restaurants" class="<?php echo $current_tab == 'restaurants' ? 'active' : ''; ?>"><i class="fa-solid fa-shop"></i> Manage Restaurants</a></li>
                     <li class="admin-menu-item"><a href="?tab=add-staff" class="<?php echo $current_tab == 'add-staff' ? 'active' : ''; ?>"><i class="fa-solid fa-user-plus"></i> Create Staff</a></li>
-                    <li class="admin-menu-item"><a href="?tab=audit" class="<?php echo $current_tab == 'audit' ? 'active' : ''; ?>"><i class="fa-solid fa-clipboard-list"></i> Audit log</a></li>
+                    <li class="admin-menu-item"><a href="?tab=audit" class="<?php echo $current_tab == 'audit' ? 'active' : ''; ?>"><i class="fa-solid fa-clipboard-list"></i> Advanced Change Tracker</a></li>
                     <li class="admin-menu-item"><a href="?tab=backup" class="<?php echo $current_tab == 'backup' ? 'active' : ''; ?>"><i class="fa-solid fa-shield-halved"></i> Backup</a></li>
                     <li class="admin-menu-item"><a href="?tab=online-settings" class="<?php echo $current_tab == 'online-settings' ? 'active' : ''; ?>"><i class="fa-solid fa-globe"></i> Online &amp; Delivery</a></li>
                     <li class="admin-menu-item"><a href="?tab=license" class="<?php echo $current_tab == 'license' ? 'active' : ''; ?>"><i class="fa-solid fa-key"></i> License</a></li>
