@@ -15,10 +15,10 @@ function qrrs_accounts_render( $rid ) {
     global $wpdb;
     $rid   = intval( $rid );
     $acc   = sanitize_key( $_GET['acc'] ?? '' );
-    $tab   = in_array( $acc, [ 'hr', 'closing' ], true ) ? $acc : 'expenses';
+    $tab   = in_array( $acc, [ 'hr', 'closing', 'suppliers' ], true ) ? $acc : 'expenses';
     $base  = add_query_arg( [ 'tab' => 'accounts' ], home_url( '/restaurant-dashboard/' ) );
     $today = current_time( 'Y-m-d' );
-    $tabs  = [ 'expenses' => '💸 Expenses', 'closing' => '🔒 Daily closing', 'hr' => '👥 HR' ];
+    $tabs  = [ 'expenses' => '💸 Expenses', 'suppliers' => '🚚 Suppliers', 'closing' => '🔒 Daily closing', 'hr' => '👥 HR' ];
     ?>
     <div>
         <div style="display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;">
@@ -97,6 +97,8 @@ function qrrs_accounts_render( $rid ) {
                 </tbody>
             </table>
 
+        <?php elseif ( 'suppliers' === $tab ) : ?>
+            <?php if ( function_exists( 'qrrs_suppliers_render' ) ) { qrrs_suppliers_render( $rid ); } ?>
         <?php elseif ( 'closing' === $tab ) : ?>
             <?php if ( function_exists( 'qrrs_closing_render' ) ) { qrrs_closing_render( $rid ); } ?>
 

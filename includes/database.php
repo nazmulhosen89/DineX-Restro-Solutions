@@ -472,6 +472,24 @@ class QRRS_Database {
         ) $charset_collate;";
 
         /**
+         * Payments made to suppliers
+         */
+        $sql_supplier_pay = "CREATE TABLE {$prefix}supplier_payments (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            restaurant_id bigint(20) NOT NULL,
+            supplier_id bigint(20) NOT NULL,
+            amount decimal(12,2) NOT NULL DEFAULT 0.00,
+            method varchar(30) NOT NULL DEFAULT 'cash',
+            reference varchar(100) NOT NULL DEFAULT '',
+            note varchar(255) NOT NULL DEFAULT '',
+            paid_on date NOT NULL,
+            created_by bigint(20) NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY restaurant_supplier (restaurant_id, supplier_id)
+        ) $charset_collate;";
+
+        /**
          * Audit log: who changed what, and when
          */
         $sql_audit = "CREATE TABLE {$prefix}audit_log (
@@ -676,6 +694,7 @@ class QRRS_Database {
         dbDelta( $sql_payments );
         dbDelta( $sql_closings );
         dbDelta( $sql_expenses );
+        dbDelta( $sql_supplier_pay );
         dbDelta( $sql_rooms );
         dbDelta( $sql_stock_movements );
         dbDelta( $sql_requisitions );
