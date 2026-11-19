@@ -171,7 +171,6 @@ $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'report
                 <?php if ( qrrs_inventory_can_manage() && qrrs_room_service_enabled( qrrs_inventory_get_active_restaurant_id() ) ) : ?><li><a href="?tab=rooms" class="<?php echo $current_tab == 'rooms' ? 'active' : ''; ?>"><i class="fa-solid fa-bed"></i> Rooms</a></li><?php endif; ?>
                 <li><a href="?tab=billing" class="<?php echo $current_tab == 'billing' ? 'active' : ''; ?>"><i class="fa-solid fa-cash-register"></i> Billing & POS</a></li>
                 <li><a href="?tab=reports" class="<?php echo $current_tab == 'reports' ? 'active' : ''; ?>"><i class="fa-solid fa-chart-line"></i> Reports</a></li>
-                <?php if ( qrrs_inventory_can_manage() ) : ?><li><a href="?tab=closing" class="<?php echo $current_tab == 'closing' ? 'active' : ''; ?>"><i class="fa-solid fa-cash-register"></i> Daily closing</a></li><?php endif; ?>
                 <?php if ( qrrs_inventory_can_manage() ) : ?><li><a href="?tab=accounts" class="<?php echo $current_tab == 'accounts' ? 'active' : ''; ?>"><i class="fa-solid fa-briefcase"></i> Accounts &amp; HR</a></li><?php endif; ?>
                 <li><a href="?tab=categories" class="<?php echo $current_tab == 'categories' ? 'active' : ''; ?>"><i class="fa-solid fa-folder-tree"></i> Categories</a></li>
                 <li><a href="?tab=items" class="<?php echo $current_tab == 'items' ? 'active' : ''; ?>"><i class="fa-solid fa-bowl-food"></i> Items</a></li>

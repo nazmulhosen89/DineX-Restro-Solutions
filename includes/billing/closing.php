@@ -83,7 +83,7 @@ add_action( 'admin_post_qrrs_day_close', function () {
     $rid  = intval( $_POST['restaurant_id'] ?? 0 );
     $date = sanitize_text_field( $_POST['closing_date'] ?? '' );
     check_admin_referer( 'qrrs_day_close_' . $date );
-    $back = add_query_arg( [ 'tab' => 'closing', 'closing_date' => $date ], home_url( '/restaurant-dashboard/' ) );
+    $back = add_query_arg( [ 'tab' => 'accounts', 'acc' => 'closing', 'closing_date' => $date ], home_url( '/restaurant-dashboard/' ) );
     if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) || qrrs_closing_saved( $rid, $date ) ) {
         wp_safe_redirect( add_query_arg( 'cl_status', 'exists', $back ) ); exit;
     }
@@ -129,7 +129,8 @@ function qrrs_closing_render( $rid ) {
         <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:16px;">
             <h3 style="margin:0; font-size:20px; color:#1e293b;">Daily closing</h3>
             <form method="get" style="margin:0; display:flex; gap:8px; align-items:center;">
-                <input type="hidden" name="tab" value="closing">
+                <input type="hidden" name="tab" value="accounts">
+                <input type="hidden" name="acc" value="closing">
                 <input type="date" name="closing_date" value="<?php echo esc_attr( $date ); ?>" style="padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px;">
                 <button type="submit" style="padding:8px 14px; background:#2563eb; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer;">Show</button>
             </form>
@@ -197,5 +198,5 @@ add_action( 'admin_post_qrrs_day_reopen', function () {
         $wpdb->delete( $wpdb->prefix . 'qrrs_day_closings', [ 'id' => intval( $old->id ) ] );
         qrrs_audit( 'day_reopened', 'day', 0, [ 'date' => $date, 'was_counted' => $old->counted_cash, 'was_net' => $old->net_total ], $rid );
     }
-    wp_safe_redirect( add_query_arg( [ 'tab' => 'closing', 'closing_date' => $date, 'cl_status' => 'reopened' ], home_url( '/restaurant-dashboard/' ) ) ); exit;
+    wp_safe_redirect( add_query_arg( [ 'tab' => 'accounts', 'acc' => 'closing', 'closing_date' => $date, 'cl_status' => 'reopened' ], home_url( '/restaurant-dashboard/' ) ) ); exit;
 } );

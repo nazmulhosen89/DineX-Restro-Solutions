@@ -14,10 +14,11 @@ function qrrs_accounts_render( $rid ) {
     }
     global $wpdb;
     $rid   = intval( $rid );
-    $tab   = ( $_GET['acc'] ?? '' ) === 'hr' ? 'hr' : 'expenses';
+    $acc   = sanitize_key( $_GET['acc'] ?? '' );
+    $tab   = in_array( $acc, [ 'hr', 'closing' ], true ) ? $acc : 'expenses';
     $base  = add_query_arg( [ 'tab' => 'accounts' ], home_url( '/restaurant-dashboard/' ) );
     $today = current_time( 'Y-m-d' );
-    $tabs  = [ 'expenses' => '💸 Expenses', 'hr' => '👥 HR' ];
+    $tabs  = [ 'expenses' => '💸 Expenses', 'closing' => '🔒 Daily closing', 'hr' => '👥 HR' ];
     ?>
     <div>
         <div style="display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;">
@@ -96,7 +97,10 @@ function qrrs_accounts_render( $rid ) {
                 </tbody>
             </table>
 
-        <?php else :
+        <?php elseif ( 'closing' === $tab ) : ?>
+            <?php if ( function_exists( 'qrrs_closing_render' ) ) { qrrs_closing_render( $rid ); } ?>
+
+        <?php else : 
             $staff = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}qrrs_staff WHERE restaurant_id = %d AND status = 'active'", $rid ) );
             ?>
             <div style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px;">
