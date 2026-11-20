@@ -192,6 +192,13 @@ function qrrs_sales_methods_html( $rid, $from, $to ) {
         $gross += $row['total']; 
     }
     $net_collected = $gross - (float) $ref->total;
+    $due_rows = $wpdb->get_results( $wpdb->prepare(
+        "SELECT method, COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM {$p}qrrs_due_payments
+         WHERE restaurant_id = %d AND paid_on BETWEEN %s AND %s GROUP BY method ORDER BY total DESC",
+        $rid, $from, $to
+    ) );
+    $due_total = 0.0; $due_count = 0;
+    foreach ( $due_rows as $dr ) { $due_total += (float) $dr->total; $due_count += (int) $dr->n; }
     $credit_given = (float) $wpdb->get_var( $wpdb->prepare(
         "SELECT COALESCE(SUM(amount),0) FROM {$p}qrrs_dues WHERE restaurant_id = %d AND order_id > 0 AND DATE(created_at) BETWEEN %s AND %s",
         $rid, $from, $to
@@ -307,6 +314,23 @@ function qrrs_sales_methods_html( $rid, $from, $to ) {
                 </div>
             </div>
 
+            <!-- Due Collected Card -->
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 18px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span style="font-size: 13px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Due Collected</span>
+                </div>
+                <div style="font-size: 13px; color: #15803d; margin-bottom: 4px;">
+                    Payments: <strong style="color: #14532d;"><?php echo intval( $due_count ); ?></strong>
+                </div>
+                <div style="font-size: 20px; font-weight: 800; color: #166534;">
+                    <?php echo $money( $due_total ); ?>
+                </div>
+                <?php foreach ( $due_rows as $dr ) : ?>
+                    <div style="font-size: 12px; color: #15803d; margin-top: 4px;"><?php echo esc_html( $names[ $dr->method ] ?? $dr->method ); ?>: <?php echo $money( $dr->total ); ?></div>
+                <?php endforeach; ?>
+                <div style="font-size: 11px; color: #64748b; margin-top: 8px;">Old credit (বাকি) received in this period. Not part of bill sales.</div>
+            </div>
+
             <!-- Net Collected Card -->
             <div style="background: #1e293b; border: 2px solid #0f172a; border-radius: 14px; padding: 18px; color: #ffffff;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -330,4 +354,4 @@ function qrrs_sales_methods_html( $rid, $from, $to ) {
     </div>
     <?php
     return ob_get_clean();
-}
+}   

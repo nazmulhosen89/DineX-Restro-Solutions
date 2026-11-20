@@ -26,7 +26,7 @@ $categories = $wpdb->get_results($wpdb->prepare(
     <aside class="sales-sidebar" style="width: 280px; background: #fff; border-radius: 12px; border: 1px solid #eee; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); flex-shrink:0;">
         <h4 style="margin-top: 0; color: #1e293b; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">Filter Reports</h4>
 
-        <form id="sales-filter-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px; padding: 0;">
+        <form id="sales-filter-form" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px; padding: 0; height: calc(100vh - 470px); overflow-y: scroll; overflow-x: hidden;">
             <input type="hidden" name="restaurant_id" value="<?php echo $active_res_id; ?>">
 
             <!-- Report Type -->

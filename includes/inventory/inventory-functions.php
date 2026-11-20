@@ -1,6 +1,7 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+if ( ! function_exists( 'qrrs_inventory_get_active_restaurant_id' ) ) {
 function qrrs_inventory_get_active_restaurant_id() {
     if ( current_user_can( 'administrator' ) ) {
         if ( ! session_id() ) {
@@ -17,6 +18,7 @@ function qrrs_inventory_get_active_restaurant_id() {
     }
 
     return intval( $restaurant_id );
+}
 }
 
 function qrrs_inventory_user_department() {
@@ -494,7 +496,7 @@ function qrrs_inventory_render_requisition_panel( $forced_department = '' ) {
  * Bump QRRS_SCHEMA_VERSION whenever a table or column is added.
  */
 if ( ! defined( 'QRRS_SCHEMA_VERSION' ) ) {
-    define( 'QRRS_SCHEMA_VERSION', '2026.11.09-25' );
+    define( 'QRRS_SCHEMA_VERSION', '2026.11.09-26' );
 }
 add_action( 'init', function () {
     if ( get_option( 'qrrs_schema_version' ) === QRRS_SCHEMA_VERSION ) {

@@ -1088,7 +1088,7 @@ body {
 #sales-report-result, #order-report-result, #kitchen-report-result,
 #staff-report-result, #payment-report-result, #tax-report-result {
     float: left;
-    height: calc(100vh - 559px);
+    height: calc(100vh - 494px);
     width: 100%;
     overflow-y: auto;
 }
@@ -3594,4 +3594,457 @@ body {
     background: #2563eb;
     border-color: #2563eb;
     color: #ffffff;
+}
+
+
+
+
+
+/* =========================================
+   QRRS Accounts & HR Module Styling
+   ========================================= */
+
+.qrrs-acc-wrapper {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: #f8fafc;
+    padding: 24px;
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+    max-width: 1200px;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+/* Header */
+.qrrs-acc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 16px;
+}
+
+.qrrs-acc-header h2 {
+    margin: 0;
+    font-size: 22px;
+    color: #0f172a;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.qrrs-acc-header p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+/* Interactive Navigation Tabs */
+.qrrs-acc-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.qrrs-acc-tab-btn {
+    padding: 10px 18px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 13px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #334155;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.qrrs-acc-tab-btn:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    transform: translateY(-2px);
+    color: #0f172a;
+}
+
+.qrrs-acc-tab-btn.active {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    border-color: transparent;
+    color: #ffffff;
+    box-shadow: 0 6px 14px -3px rgba(37, 99, 235, 0.35);
+    transform: translateY(-2px);
+}
+
+/* Toast Alerts */
+.qrrs-acc-alert {
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.qrrs-acc-alert.success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+.qrrs-acc-alert.error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+/* Cards & Form Grids */
+.qrrs-acc-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+.qrrs-acc-card-title {
+    margin: 0 0 16px;
+    font-size: 15px;
+    color: #1e293b;
+    font-weight: 700;
+}
+
+.qrrs-acc-form-grid {
+    display: grid;
+    grid-template-columns: 160px 180px 140px 1fr auto;
+    gap: 14px;
+    align-items: end;
+}
+
+.qrrs-acc-field label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.qrrs-acc-field input,
+.qrrs-acc-field select {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #1e293b;
+    outline: none;
+    width: 100%;
+    height: 40px;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.qrrs-acc-field input:focus,
+.qrrs-acc-field select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+/* Buttons */
+.qrrs-acc-btn-success,
+.qrrs-acc-btn-primary,
+.qrrs-acc-btn-secondary {
+    height: 40px;
+    padding: 0 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+.qrrs-acc-btn-success {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: #ffffff;
+    border: none;
+    box-shadow: 0 4px 10px -2px rgba(22, 163, 74, 0.3);
+}
+.qrrs-acc-btn-success:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px -2px rgba(22, 163, 74, 0.4);
+}
+
+.qrrs-acc-btn-primary {
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+}
+.qrrs-acc-btn-primary:hover {
+    background: #1d4ed8;
+}
+
+.qrrs-acc-btn-secondary {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
+.qrrs-acc-btn-secondary:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.qrrs-acc-btn-danger {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.qrrs-acc-btn-danger:hover {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
+}
+
+/* Filter Bar & Total Summary */
+.qrrs-acc-filter-bar {
+    background: #ffffff;
+    padding: 16px 20px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+.qrrs-acc-filter-group {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.qrrs-acc-filter-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.qrrs-acc-total-box {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    border: 1px solid #bfdbfe;
+    padding: 8px 18px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.qrrs-acc-total-box span {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #1d4ed8;
+}
+
+.qrrs-acc-total-box strong {
+    font-size: 18px;
+    color: #0f172a;
+    font-weight: 800;
+}
+
+/* Table Design */
+.qrrs-acc-table-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+}
+
+.qrrs-acc-table-responsive {
+    overflow-x: auto;
+}
+
+.qrrs-acc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+}
+
+.qrrs-acc-table thead tr {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    color: #475569;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.qrrs-acc-table th,
+.qrrs-acc-table td {
+    padding: 14px 18px;
+}
+
+.qrrs-acc-table tbody tr {
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s ease;
+}
+
+.qrrs-acc-table tbody tr:nth-child(even) {
+    background: #fafafa;
+}
+
+.qrrs-acc-table tbody tr:hover {
+    background: #f1f5f9;
+}
+
+.col-date {
+    font-weight: 600;
+    color: #334155;
+    white-space: nowrap;
+}
+
+.col-note {
+    color: #64748b;
+}
+
+.col-amount {
+    font-weight: 700;
+    color: #0f172a;
+    font-size: 14px;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.inline-form {
+    margin: 0;
+    display: inline-block;
+}
+
+.qrrs-acc-cat-badge {
+    background: #f1f5f9;
+    color: #334155;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid #e2e8f0;
+    display: inline-block;
+}
+
+/* Empty & Restricted States */
+.qrrs-acc-empty {
+    padding: 45px 20px !important;
+    text-align: center;
+}
+.qrrs-acc-empty .empty-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+}
+.qrrs-acc-empty .empty-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #334155;
+}
+.qrrs-acc-empty .empty-subtitle {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+/* HR Overview Card */
+.qrrs-acc-hr-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 40px 24px;
+    text-align: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+}
+
+.qrrs-acc-hr-card .hr-icon {
+    font-size: 42px;
+    margin-bottom: 12px;
+}
+
+.qrrs-acc-hr-card .hr-stat-badge {
+    display: inline-block;
+    background: #e0f2fe;
+    color: #0369a1;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.qrrs-acc-hr-card h3 {
+    margin: 0 0 10px;
+    font-size: 22px;
+    color: #0f172a;
+}
+
+.qrrs-acc-hr-card p {
+    margin: 0 auto;
+    max-width: 480px;
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.6;
+}
+
+.qrrs-acc-restricted {
+    max-width: 480px;
+    margin: 40px auto;
+    background: #ffffff;
+    padding: 32px;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+}
+.qrrs-acc-restricted-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 991px) {
+    .qrrs-acc-form-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    .qrrs-acc-field-wide,
+    .qrrs-acc-field-btn {
+        grid-column: span 2;
+    }
+    .qrrs-acc-btn-success {
+        width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    .qrrs-acc-form-grid {
+        grid-template-columns: 1fr;
+    }
+    .qrrs-acc-field-wide,
+    .qrrs-acc-field-btn {
+        grid-column: span 1;
+    }
 }

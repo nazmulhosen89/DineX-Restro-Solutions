@@ -41,7 +41,12 @@ if ( isset($_POST['complete_order_id']) ) {
         $order_to_complete, $active_res_id
     ));
 
-    if ( $orig_order && ! ( function_exists( 'qrrs_split_insufficient' ) && qrrs_split_insufficient( $order_to_complete, $orig_order->grand_total, $discount_type, $discount_value ) ) ) {
+    // Credit (বাকিতে): the unpaid part of the bill goes to Customer due
+    $credit_on    = ( isset( $_POST['credit_flag'] ) && '1' === $_POST['credit_flag'] );
+    $credit_name  = sanitize_text_field( wp_unslash( $_POST['credit_name'] ?? '' ) );
+    $credit_phone = function_exists( 'qrrs_normalize_phone' ) ? qrrs_normalize_phone( sanitize_text_field( wp_unslash( $_POST['credit_phone'] ?? '' ) ) ) : '';
+    if ( mb_strlen( trim( $credit_name ) ) < 2 ) { $credit_on = false; }
+    if ( $orig_order && ( $credit_on || ! ( function_exists( 'qrrs_split_insufficient' ) && qrrs_split_insufficient( $order_to_complete, $orig_order->grand_total, $discount_type, $discount_value ) ) ) ) {
         $grand_total     = floatval($orig_order->grand_total);
         $discount_amount = 0;
 
@@ -53,7 +58,9 @@ if ( isset($_POST['complete_order_id']) ) {
             $discount_amount = min(max($discount_value, 0), $grand_total);
         }
 
-        $final_total = round($grand_total - $discount_amount, 2);
+        $exact_total    = round($grand_total - $discount_amount, 2);
+    $final_total    = round( $exact_total );          // whole taka: 0.50 and above goes up, below 0.50 goes down
+    $rounding_amount = round( $final_total - $exact_total, 2 );
 
         $cash_returned = 0;
         if ($amount_received > $final_total) {
@@ -61,6 +68,11 @@ if ( isset($_POST['complete_order_id']) ) {
         }
 
         $actual_collection = ($amount_received > $final_total) ? $final_total : $amount_received;
+        $collect_method = $payment_method;   // the real method used to take the money
+        // A bill with part (or all) of it on credit is recorded with the method 'credit'
+        if ( $credit_on && round( $final_total - min( $final_total, $amount_received ), 2 ) > 0.005 && mb_strlen( trim( $credit_name ) ) >= 2 ) {
+            $payment_method = 'credit';
+        }
 
         // Self-service orders: after the counter payment, the kitchen takes over
         $cur_src    = (string) $wpdb->get_var( $wpdb->prepare( "SELECT order_source FROM $orders_table WHERE id = %d", $order_to_complete ) );
@@ -80,6 +92,7 @@ if ( isset($_POST['complete_order_id']) ) {
                 'discount_amount' => $discount_amount,
                 'final_total'     => $final_total,
                 'payment_method'  => $payment_method,
+                'rounding_amount' => $rounding_amount,
                 'amount_received' => $amount_received, 
                 'cash_returned'   => $cash_returned,  
             ),
@@ -89,17 +102,36 @@ if ( isset($_POST['complete_order_id']) ) {
         );
 
         // Record the payment as a line (single payment too), so the daily closing counts it by method
-        if ( function_exists( 'qrrs_payments_sum' ) && 0 === qrrs_payments_sum( $order_to_complete ) ) {
-            $line_method = array_key_exists( $payment_method, qrrs_payment_methods() ) ? $payment_method : 'other';
+        if ( function_exists( 'qrrs_payments_sum' ) && 0 === qrrs_payments_sum( $order_to_complete ) && ( ! $credit_on || min( $final_total, $amount_received ) > 0.005 ) ) {
+            $line_method = array_key_exists( $collect_method, qrrs_payment_methods() ) ? $collect_method : 'other';
             $wpdb->insert( $wpdb->prefix . 'qrrs_payments', [
                 'order_id'      => $order_to_complete,
                 'restaurant_id' => intval( $active_res_id ),
                 'method'        => $line_method,
-                'amount'        => $final_total,
+                'amount'        => ( $credit_on ? min( $final_total, $amount_received ) : $final_total ),
                 'reference'     => '',
                 'created_by'    => get_current_user_id(),
                 'created_at'    => current_time( 'mysql' ),
             ] );
+        }
+
+        if ( $credit_on ) {
+            $due_amt = round( $final_total - min( $final_total, $amount_received ), 2 );
+            if ( $due_amt > 0.005 && function_exists( 'qrrs_due_key' ) ) {
+                $wpdb->insert( $wpdb->prefix . 'qrrs_dues', [
+                    'restaurant_id' => intval( $active_res_id ),
+                    'customer_key'  => qrrs_due_key( $credit_name, $credit_phone ),
+                    'customer_name' => substr( $credit_name, 0, 150 ),
+                    'phone'         => substr( (string) $credit_phone, 0, 20 ),
+                    'amount'        => $due_amt,
+                    'note'          => 'Credit bill #' . $order_to_complete,
+                    'order_id'      => intval( $order_to_complete ),
+                    'due_on'        => current_time( 'Y-m-d' ),
+                    'created_by'    => get_current_user_id(),
+                    'created_at'    => current_time( 'mysql' ),
+                ] );
+                qrrs_audit( 'bill_on_credit', 'order', $order_to_complete, [ 'amount' => $due_amt, 'customer' => $credit_name, 'phone' => $credit_phone ], intval( $active_res_id ) );
+            }
         }
 
         ?>
@@ -118,16 +150,23 @@ $billing_stats = $wpdb->get_row($wpdb->prepare("
         COUNT(id) as total_orders,
         SUM(CASE WHEN order_status IN ('pending', 'processing') THEN 1 ELSE 0 END) as pending_orders,
         SUM(CASE WHEN order_status = 'completed' THEN COALESCE(final_total, grand_total) ELSE 0 END) as total_collection,
-        SUM(CASE WHEN order_status IN ('ready', 'settle_bill', 'served', 'billing', 'out_for_delivery', 'delivered') AND COALESCE(payment_status,'') <> 'paid' THEN grand_total ELSE 0 END) as pending_collection,
+        SUM(CASE WHEN order_status IN ('settle_bill', 'billing', 'out_for_delivery', 'delivered') AND COALESCE(payment_status,'') <> 'paid' THEN grand_total ELSE 0 END) as pending_collection,
         AVG(CASE WHEN order_status = 'completed' THEN COALESCE(final_total, grand_total) END) as avg_order
     FROM $orders_table 
     WHERE restaurant_id = %d AND DATE(created_at) = %s", $active_res_id, $today));
+
+// Money actually received today (bills + old due), credit given today, and the total still owed
+$bill_cash_today = (float) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(amount),0) FROM {$wpdb->prefix}qrrs_payments WHERE restaurant_id = %d AND DATE(created_at) = %s", intval( $active_res_id ), $today ) );
+$due_in_today    = (float) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(amount),0) FROM {$wpdb->prefix}qrrs_due_payments WHERE restaurant_id = %d AND paid_on = %s", intval( $active_res_id ), $today ) );
+$credit_today    = (float) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(amount),0) FROM {$wpdb->prefix}qrrs_dues WHERE restaurant_id = %d AND order_id > 0 AND DATE(created_at) = %s", intval( $active_res_id ), $today ) );
+$due_outstanding = (float) $wpdb->get_var( $wpdb->prepare( "SELECT (SELECT COALESCE(SUM(amount),0) FROM {$wpdb->prefix}qrrs_dues WHERE restaurant_id = %d) - (SELECT COALESCE(SUM(amount),0) FROM {$wpdb->prefix}qrrs_due_payments WHERE restaurant_id = %d)", intval( $active_res_id ), intval( $active_res_id ) ) );
+$cash_in_today   = $bill_cash_today + $due_in_today;
 
 $settle_orders = $wpdb->get_results($wpdb->prepare(
     "SELECT id, table_name, grand_total, created_at, order_status 
     FROM $orders_table 
     WHERE restaurant_id = %d 
-    AND order_status IN ('ready', 'settle_bill', 'served', 'billing', 'out_for_delivery', 'delivered') AND COALESCE(payment_status,'') <> 'paid' 
+    AND order_status IN ('settle_bill', 'billing', 'out_for_delivery', 'delivered') AND COALESCE(payment_status,'') <> 'paid' 
     AND DATE(created_at) = %s 
     ORDER BY FIELD(order_status, 'billing', 'settle_bill', 'delivered', 'out_for_delivery', 'ready', 'served'), id DESC",
     $active_res_id, $today
@@ -163,7 +202,9 @@ $selected_order_id = isset($_GET['order_id']) ? intval($_GET['order_id']) : 0;
     <div class="billing-stats-grid">
         <div class="b-stat-card b-total"><small>Today's Total Orders</small><strong><?php echo $billing_stats->total_orders ?: 0; ?></strong></div>
         <div class="b-stat-card b-pending-order"><small>Orders In Kitchen</small><strong><?php echo $billing_stats->pending_orders ?: 0; ?></strong></div>
-        <div class="b-stat-card b-collection"><small>Total Collection</small><strong><?php echo number_format(round($billing_stats->total_collection ?: 0), 2); ?> ৳</strong></div>
+        <div class="b-stat-card b-collection"><small>Total Collection (cash in today)</small><strong><?php echo number_format( round( $cash_in_today ), 2 ); ?> ৳</strong><small style="display:block; font-size:11px; color:#64748b; margin-top:4px;">Bills <?php echo number_format( round( $bill_cash_today ), 2 ); ?> · Due collected <?php echo number_format( round( $due_in_today ), 2 ); ?></small></div>
+<div class="b-stat-card"><small>Credit Given Today (বাকি)</small><strong style="color: #c2410c;"><?php echo number_format( round( $credit_today ), 2 ); ?> ৳</strong></div>
+<div class="b-stat-card"><small>Customer Due Outstanding</small><strong style="color: #dc2626;"><?php echo number_format( round( $due_outstanding ), 2 ); ?> ৳</strong></div>
         <div class="b-stat-card b-pending-cash"><small>Pending Collection</small><strong style="color: #e67e22;"><?php echo number_format(round($billing_stats->pending_collection ?: 0), 2); ?> ৳</strong></div>
         <div class="b-stat-card b-avg"><small>Avg. Order Value</small><strong><?php echo number_format($billing_stats->avg_order ?: 0, 2); ?> ৳</strong></div>
     </div>
@@ -431,6 +472,16 @@ $selected_order_id = isset($_GET['order_id']) ? intval($_GET['order_id']) : 0;
             </div>
             <div id="split-msg" style="color:#dc2626; font-size:12px; margin-top:6px;"></div>
             <div id="split-lines" style="font-size:13px; margin-top:8px;"></div>
+        </div>
+        <div id="credit-area" style="margin-top:8px;">
+            <button type="button" id="credit-toggle" onclick="creditToggle()" style="display:none; width:100%; padding:10px; background:#fff; border:2px dashed #ea580c; color:#ea580c; border-radius:8px; font-weight:700; cursor:pointer;">📝 বাকিতে (Credit)</button>
+            <div id="credit-box" style="display:none; margin-top:8px; border:1px solid #fed7aa; background:#fff7ed; border-radius:10px; padding:10px;">
+                <div style="font-size:12px; font-weight:700; color:#9a3412; margin-bottom:6px;">Unpaid part of the bill goes to Customer due</div>
+                <input type="text" id="credit-name" maxlength="150" placeholder="Customer name *" style="width:100%; padding:9px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; margin-bottom:6px;">
+                <input type="text" id="credit-phone" maxlength="20" placeholder="Mobile (optional, 01XXXXXXXXX)" style="width:100%; padding:9px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box;">
+                <div id="credit-amt" style="font-size:13px; font-weight:700; color:#c2410c; margin-top:6px;"></div>
+                <button type="button" onclick="creditToggle()" style="margin-top:6px; background:none; border:none; color:#64748b; cursor:pointer; font-size:12px;">Cancel credit</button>
+            </div>
         </div>
         <form method="POST" action="?tab=billing" id="payment-confirm-form">
             <input type="hidden" name="complete_order_id" id="hidden-order-id">
@@ -700,6 +751,8 @@ function splitUpdateUI() {
     var isCash = splitMethod() === 'cash';
     document.getElementById('split-ref-wrap').style.display = isCash ? 'none' : 'block';
     document.getElementById('split-toggle').style.display  = (typed > 0 && left > 0.005) ? 'block' : 'none';
+    document.getElementById('credit-toggle').style.display = (left > 0.005) ? 'block' : 'none';
+    if (creditOn) { document.getElementById('credit-amt').textContent = 'On credit: ' + Math.max(0, left).toFixed(2) + ' ৳'; }
     var amt = document.getElementById('amount-received-input');
     amt.placeholder = (_splitLines > 0 && left > 0) ? left.toFixed(2) : '0.00';
     applyUsedMethodStyles();
@@ -757,9 +810,33 @@ function validateAndSubmitPayment() {
     splitSubmitNow();
 }
 
+var creditOn = false;
+
+function creditToggle() {
+    creditOn = !creditOn;
+    document.getElementById('credit-box').style.display = creditOn ? 'block' : 'none';
+    document.getElementById('credit-toggle').style.background = creditOn ? '#fff7ed' : '#fff';
+    splitUpdateUI();
+}
+
 function splitSubmitNow() {
     var received = _splitLines > 0 ? _splitTotal : splitTyped();
     var payable  = splitPayable();
+    if (creditOn) {
+        var cname = (document.getElementById('credit-name').value || '').trim();
+        if (cname.length < 2) { showCustomAlert('Enter the customer name for the credit.'); return; }
+        var cphone = (document.getElementById('credit-phone').value || '').replace(/[\s-]/g, '');
+        if (cphone !== '' && !/^(?:\+?880|0)?1[3-9]\d{8}$/.test(cphone)) { showCustomAlert('Enter a valid mobile number or leave it empty.'); return; }
+        if (received >= payable) { creditOn = false; }
+        var form = document.getElementById('payment-confirm-form');
+        var add = function (n, v) { var i = document.createElement('input'); i.type = 'hidden'; i.name = n; i.value = v; form.appendChild(i); };
+        add('credit_flag', creditOn ? '1' : '0');
+        add('credit_name', cname);
+        add('credit_phone', cphone);
+        document.getElementById('hidden-amount-received').value = received;
+        form.submit();
+        return;
+    }
     if (received <= 0) {
         showCustomAlert('Please enter the amount received.');
         return;
@@ -773,14 +850,6 @@ function splitSubmitNow() {
         document.getElementById('payment-confirm-form').submit();
     }
 }
-
-splitRenderLines(_splitInit);
-splitUpdateUI();
-<?php if ( ! empty( $order ) && 'self' === $order->order_source && 'awaiting_payment' === $order->order_status ) : ?>
-if ( new URLSearchParams( window.location.search ).get('self_pay') === '1' ) {
-    setTimeout( function () { openPaymentModal(<?php echo intval( $order->id ); ?>, <?php echo floatval( $order->grand_total ); ?>, '<?php echo esc_js( $full_invoice_no ); ?>', '<?php echo esc_js( $order->table_name ); ?>'); }, 300 );
-}
-<?php endif; ?>
 
 function printReceipt() {
     window.print();

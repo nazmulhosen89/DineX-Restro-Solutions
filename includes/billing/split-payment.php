@@ -41,7 +41,7 @@ function qrrs_bill_final_total( $grand, $discount_type, $discount_value ) {
     } elseif ( 'flat' === $discount_type ) {
         $disc = min( max( (float) $discount_value, 0 ), $grand );
     }
-    return round( $grand - $disc, 2 );
+    return round( $grand - $disc );
 }
 
 /** True when split lines exist but do not yet cover the bill. */

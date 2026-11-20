@@ -128,6 +128,7 @@ class QRRS_Database {
             tracking_code varchar(16) NOT NULL DEFAULT '',
             token_no varchar(10) NOT NULL DEFAULT '',
             token_date date DEFAULT NULL,
+            rounding_amount decimal(10,2) NOT NULL DEFAULT 0.00,
             void_reason varchar(255) NOT NULL DEFAULT '',
             voided_at datetime DEFAULT NULL,
             voided_by bigint(20) NOT NULL DEFAULT 0,
