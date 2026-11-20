@@ -36,7 +36,7 @@ function qrrs_closing_expected( $rid, $date ) {
         "SELECT COALESCE(NULLIF(o.payment_method,''),'cash') AS method, COUNT(*) AS n,
                 COALESCE(SUM(COALESCE(o.final_total,o.grand_total)),0) AS total
          FROM {$p}qrrs_orders o
-         WHERE o.restaurant_id = %d AND o.payment_status = 'paid' AND DATE(o.created_at) = %s
+         WHERE o.restaurant_id = %d AND o.payment_status = 'paid' AND COALESCE(o.payment_method,'') <> 'credit' AND DATE(o.created_at) = %s
            AND NOT EXISTS (SELECT 1 FROM {$p}qrrs_payments pl WHERE pl.order_id = o.id)
          GROUP BY method",
         intval( $rid ), $date

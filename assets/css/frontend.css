@@ -1268,14 +1268,25 @@ body {
 .no-img { font-size: 10px; color: #999; border: 1px dashed #ccc; padding: 10px; border-radius: 4px; }
 
 /* 📌 ইনঅ্যাক্টিভ টেবিল কার্ডের জন্য স্পেশাল লাল থিম ও ডিজাইন */
-.tbl-card.inactive-table-card {
+.tbl-card.inactive-table {
     background-color: #fff1f2 !important;
     border: 2px dashed #f43f5e !important;
     cursor: not-allowed !important;
 }
-.tbl-card.inactive-table-card:hover {
+.tbl-card.inactive-table:hover {
     transform: none !important;
     box-shadow: none !important;
+}
+
+.tbl-card.inactive-table::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #ff0000;
+  border-radius: 16px 16px 0 0;
 }
 
 #successPopup {

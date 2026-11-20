@@ -496,6 +496,7 @@ class QRRS_Database {
             id bigint(20) NOT NULL AUTO_INCREMENT,
             restaurant_id bigint(20) NOT NULL,
             customer_key varchar(190) NOT NULL,
+            order_id bigint(20) NOT NULL DEFAULT 0,
             customer_name varchar(150) NOT NULL DEFAULT '',
             phone varchar(20) NOT NULL DEFAULT '',
             amount decimal(12,2) NOT NULL DEFAULT 0.00,

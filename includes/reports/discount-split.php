@@ -156,7 +156,7 @@ function qrrs_sales_methods_html( $rid, $from, $to ) {
         "SELECT COALESCE(NULLIF(o.payment_method,''),'cash') AS method, COUNT(*) AS n,
                 COALESCE(SUM(COALESCE(o.final_total,o.grand_total)),0) AS total
          FROM {$p}qrrs_orders o
-         WHERE o.restaurant_id = %d AND o.payment_status = 'paid' AND DATE(o.created_at) BETWEEN %s AND %s
+         WHERE o.restaurant_id = %d AND o.payment_status = 'paid' AND COALESCE(o.payment_method,'') <> 'credit' AND DATE(o.created_at) BETWEEN %s AND %s
            AND NOT EXISTS (SELECT 1 FROM {$p}qrrs_payments pl WHERE pl.order_id = o.id)
          GROUP BY method", $rid, $from, $to
     ) ) as $r ) { $add( $r->method, $r->n, $r->total ); }
@@ -192,6 +192,10 @@ function qrrs_sales_methods_html( $rid, $from, $to ) {
         $gross += $row['total']; 
     }
     $net_collected = $gross - (float) $ref->total;
+    $credit_given = (float) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COALESCE(SUM(amount),0) FROM {$p}qrrs_dues WHERE restaurant_id = %d AND order_id > 0 AND DATE(created_at) BETWEEN %s AND %s",
+        $rid, $from, $to
+    ) );
 
     // Helper to get SVG icon based on payment method or card type
     $get_icon = function( $type ) {
@@ -316,6 +320,9 @@ function qrrs_sales_methods_html( $rid, $from, $to ) {
                 </div>
                 <div style="font-size: 20px; font-weight: 800; color: #ffffff;">
                     <?php echo $money( $net_collected ); ?>
+                </div>
+                <div style="font-size: 12px; color: #fdba74; margin-top: 8px;">
+                    Credit given (বাকিতে, not in cash): <strong><?php echo $money( $credit_given ); ?></strong>
                 </div>
             </div>
 
