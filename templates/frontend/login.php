@@ -20,17 +20,17 @@
             <div class="error-msg">Invalid username or password!</div>
         <?php endif; ?>
 
-        <form method="POST" action="">
+        <form method="POST" action="" autocomplete="on">
             <?php wp_nonce_field( 'qrrs_login_action', 'qrrs_login_nonce' ); ?>
 
             <div class="form-group">
                 <label for="log">Username</label>
-                <input type="text" name="log" id="log" required placeholder="Enter username">
+                <input type="text" name="log" id="log" required placeholder="Enter username" autocomplete="username" autocapitalize="none" spellcheck="false">
             </div>
 
             <div class="form-group">
                 <label for="pwd">Password</label>
-                <input type="password" name="pwd" id="pwd" required placeholder="Enter password">
+                <input type="password" name="pwd" id="pwd" required placeholder="Enter password" autocomplete="current-password">
             </div>
 
             <div class="form-group">
