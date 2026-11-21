@@ -16,6 +16,8 @@ function qrrs_kot_html( $order_id ) {
     $items = $wpdb->get_results( $wpdb->prepare(
         "SELECT item_name, quantity, variants_selected FROM $oi WHERE order_id = %d ORDER BY id ASC", intval( $order_id )
     ) );
+    $pset = function_exists( 'qrrs_printer_get' ) ? qrrs_printer_get( $order->restaurant_id ) : [ 'paper' => '80' ];
+    $cw   = ( '58' === ( $pset['paper'] ?? '80' ) ) ? 52 : 72;
     $hotel = $wpdb->get_var( $wpdb->prepare(
         "SELECT restaurant_name FROM {$wpdb->prefix}qrrs_restaurants WHERE id = %d", intval( $order->restaurant_id )
     ) );
@@ -25,7 +27,8 @@ function qrrs_kot_html( $order_id ) {
     ob_start(); ?>
 <html><head><meta charset="utf-8"><title>KOT #<?php echo intval( $order->id ); ?></title>
 <style>
-  body { font-family: monospace; width: 280px; margin: 0 auto; padding: 10px; font-size: 14px; color: #000; }
+  @page { size: <?php echo ( '58' === ( $pset['paper'] ?? '80' ) ) ? 58 : 80; ?>mm auto; margin: 2mm; }
+  body { font-family: monospace; width: <?php echo $cw; ?>mm; margin: 0 auto; padding: 2mm; font-size: 14px; color: #000; }
   .c { text-align: center; }
   .big { font-size: 26px; font-weight: bold; text-align: center; margin: 6px 0; }
   .item { font-size: 18px; font-weight: bold; margin-top: 8px; }

@@ -26,7 +26,7 @@ function qrrs_create_restaurant( $data ) {
             'service_charge_percent' => floatval( $data['service_charge'] ),
             'kitchen_mode'           => $kitchen_mode,
             'kitchen_capacity'       => $kitchen_capacity,
-            'pos_printer_settings'   => sanitize_text_field( $data['pos_printer'] ),
+            'pos_printer_settings' => qrrs_printer_to_json( $data ),
             'status'                 => 'active',
             'created_at'             => current_time( 'mysql' )
         ]
@@ -57,7 +57,7 @@ function qrrs_update_restaurant_settings( $restaurant_id, $data ) {
             'service_charge_percent' => floatval( $data['service_charge'] ),
             'kitchen_mode'           => $kitchen_mode,
             'kitchen_capacity'       => $kitchen_capacity,
-            'pos_printer_settings'   => sanitize_text_field( $data['pos_printer'] )
+            'pos_printer_settings' => qrrs_printer_to_json( $data )
         ],
         [ 'id' => $restaurant_id ]
     );

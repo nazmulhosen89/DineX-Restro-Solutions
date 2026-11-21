@@ -55,9 +55,9 @@ function qrrs_self_slip_html( $order_id, $paid = true ) {
 <div class="c" style="margin-top:6px;">Pay at the counter</div>
 <?php endif; ?>
 <hr>
-<div class="c">Thank you for visiting!</div>
+<div class="c"><?php echo nl2br( esc_html( function_exists( 'qrrs_printer_get' ) ? qrrs_printer_get( intval( $order->restaurant_id ) )['footer'] : 'Thank You for Visiting!' ) ); ?></div>
 <div class="c" style="margin-top:6px;">Developed for <?php echo esc_html( $hotel ); ?></div>
-<div class="c" style="font-size:11px;">Proudly powered by DineX Restro Solutions</div>
+<div class="c" style="font-size:11px;">Proudly powered by <strong>DineX Restro Solutions</strong></div>
 <script>window.onload = function () { setTimeout(function () { window.print(); }, 300); };</script>
 </body></html>
 <?php

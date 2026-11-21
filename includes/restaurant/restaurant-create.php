@@ -131,12 +131,8 @@ if ( isset($_POST['save_restaurant']) ) {
             </div>
 
             <div class="form-row">
-                <div class="form-col">
-                    <label>POS Printer</label>
-                    <select name="pos_printer">
-                        <option value="thermal_80mm" <?php echo ($edit_mode && $res_data->pos_printer_settings == 'thermal_80mm') ? 'selected' : ''; ?>>Thermal 80mm</option>
-                        <option value="thermal_58mm" <?php echo ($edit_mode && $res_data->pos_printer_settings == 'thermal_58mm') ? 'selected' : ''; ?>>Thermal 58mm</option>
-                    </select>
+                <div style="grid-column:1 / -1; width:100%;">
+                    <?php echo qrrs_printer_fields_html( $edit_mode ? intval( $res_data->id ) : 0 ); ?>
                 </div>
             </div>
 
