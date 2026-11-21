@@ -13,14 +13,19 @@ if (!isset($active_res_id) || !$active_res_id) {
 
 $stats = $wpdb->get_row($wpdb->prepare(
     "SELECT 
-        IFNULL(SUM(grand_total), 0) as sales, 
+        IFNULL(SUM(CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) ELSE grand_total END), 0) as sales, 
         COUNT(id) as orders,
-        IFNULL(AVG(grand_total), 0) as avg_val
+        IFNULL(AVG(CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) ELSE grand_total END), 0) as avg_val
      FROM {$wpdb->prefix}qrrs_orders 
      WHERE restaurant_id = %d AND DATE(created_at) = %s AND order_status != 'cancelled'", 
     $active_res_id, $today
 ));
 
+// Today's rounding (+ rounds up, − rounds down)
+$today_rounding = (float) $wpdb->get_var($wpdb->prepare(
+    "SELECT COALESCE(SUM(rounding_amount),0) FROM {$wpdb->prefix}qrrs_orders WHERE restaurant_id = %d AND payment_status = 'paid' AND DATE(created_at) = %s",
+    $active_res_id, $today
+));
 $sales_trend = $wpdb->get_results($wpdb->prepare(
     "SELECT DATE(created_at) as date, SUM(grand_total) as daily_total 
      FROM {$wpdb->prefix}qrrs_orders 
@@ -86,6 +91,7 @@ $top_items = $wpdb->get_results($wpdb->prepare(
             <div class="stat-details">
                 <span class="stat-label">Today's Sales</span>
                 <h2 class="stat-value"><?php echo esc_html($currency) . number_format((float)($stats->sales ?? 0), 2); ?></h2>
+                    <small style="display:block; font-size:12px; color:#64748b; margin-top:4px;">Rounding: <?php echo ($today_rounding >= 0 ? '+ ' : '− ') . esc_html($currency) . number_format(abs($today_rounding), 2); ?></small>
             </div>
         </div>
 

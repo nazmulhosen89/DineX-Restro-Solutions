@@ -197,6 +197,36 @@ function qrrs_sales_methods_html( $rid, $from, $to ) {
          WHERE restaurant_id = %d AND paid_on BETWEEN %s AND %s GROUP BY method ORDER BY total DESC",
         $rid, $from, $to
     ) );
+    $sales_row = $wpdb->get_row( $wpdb->prepare(
+        "SELECT COUNT(*) AS n, COALESCE(SUM(COALESCE(final_total,grand_total)),0) AS total FROM {$p}qrrs_orders
+         WHERE restaurant_id = %d AND payment_status = 'paid' AND DATE(created_at) BETWEEN %s AND %s",
+        $rid, $from, $to
+    ) );
+    $credit_row = $wpdb->get_row( $wpdb->prepare(
+        "SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS total FROM {$p}qrrs_dues
+         WHERE restaurant_id = %d AND order_id > 0 AND DATE(created_at) BETWEEN %s AND %s",
+        $rid, $from, $to
+    ) );
+    $outstanding = (float) $wpdb->get_var( $wpdb->prepare(
+        "SELECT (SELECT COALESCE(SUM(amount),0) FROM {$p}qrrs_dues WHERE restaurant_id = %d) - (SELECT COALESCE(SUM(amount),0) FROM {$p}qrrs_due_payments WHERE restaurant_id = %d)",
+        $rid, $rid
+    ) );
+    $rounding_total = (float) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COALESCE(SUM(rounding_amount),0) FROM {$p}qrrs_orders
+         WHERE restaurant_id = %d AND payment_status = 'paid' AND DATE(created_at) BETWEEN %s AND %s",
+        $rid, $from, $to
+    ) );
+    // Bills whose money does not add up: total must equal payments + credit
+    $mismatch = $wpdb->get_results( $wpdb->prepare(
+        "SELECT o.id, o.final_total,
+                COALESCE((SELECT SUM(pl.amount) FROM {$p}qrrs_payments pl WHERE pl.order_id = o.id),0) AS paid,
+                COALESCE((SELECT SUM(d.amount) FROM {$p}qrrs_dues d WHERE d.order_id = o.id),0) AS credit
+         FROM {$p}qrrs_orders o
+         WHERE o.restaurant_id = %d AND o.payment_status = 'paid' AND DATE(o.created_at) BETWEEN %s AND %s
+         HAVING ABS(o.final_total - paid - credit) > 0.5
+         ORDER BY o.id",
+        $rid, $from, $to
+    ) );
     $due_total = 0.0; $due_count = 0;
     foreach ( $due_rows as $dr ) { $due_total += (float) $dr->total; $due_count += (int) $dr->n; }
     $credit_given = (float) $wpdb->get_var( $wpdb->prepare(
@@ -231,127 +261,67 @@ function qrrs_sales_methods_html( $rid, $from, $to ) {
         <!-- <h4 style="margin:0 0 16px; font-size:16px; color:#1e293b; font-weight:700;">Payment methods &amp; breakdown (<?php echo esc_html( $from ); ?> to <?php echo esc_html( $to ); ?>)</h4> -->
         
         <!-- Cards Grid Layout -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;">
-            
-            <?php foreach ( $m as $key => $row ) : 
-                $method_name = $names[ $key ] ?? ( 'split' === $key ? 'Split (old)' : ucfirst( $key ) );
-                $card_color = '#2563eb';
-                $bg_color = '#eff6ff';
-                $border_color = '#bfdbfe';
-                if(strtolower($key) === 'cash') { $card_color = '#059669'; $bg_color = '#ecfdf5'; $border_color = '#a7f3d0'; }
-                elseif(strtolower($key) === 'bkash') { $card_color = '#db2777'; $bg_color = '#fdf2f8'; $border_color = '#fbcfe8'; }
-                elseif(strtolower($key) === 'rocket') { $card_color = '#7c3aed'; $bg_color = '#f5f3ff'; $border_color = '#ddd6fe'; }
-            ?>
-                <div style="background: <?php echo $bg_color; ?>; border: 1px solid <?php echo $border_color; ?>; border-radius: 14px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: all 0.2s;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <span style="font-size: 13px; font-weight: 700; color: <?php echo $card_color; ?>; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <?php echo esc_html( $method_name ); ?>
-                        </span>
-                        <div style="color: <?php echo $card_color; ?>; background: #ffffff; padding: 6px; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                            <?php echo $get_icon( $key ); ?>
-                        </div>
-                    </div>
-                    <div style="font-size: 13px; color: #475569; margin-bottom: 4px;">
-                        Payments: <strong style="font-weight: 700; color: #1e293b;"><?php echo intval( $row['n'] ); ?></strong>
-                    </div>
-                    <div style="font-size: 20px; font-weight: 800; color: <?php echo $card_color; ?>;">
-                        <?php echo $money( $row['total'] ); ?>
-                    </div>
-                </div>
-            <?php endforeach; ?>
+        <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px;">
 
-            <?php if ( empty( $m ) ) : ?>
-                <div style="grid-column: 1 / -1; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 24px; text-align: center; color: #94a3b8;">
-                    No payments in this period.
-                </div>
-            <?php endif; ?>
-
-            <!-- Discount Card -->
-            <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 14px; padding: 18px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <span style="font-size: 13px; font-weight: 700; color: #c2410c; text-transform: uppercase; letter-spacing: 0.5px;">Discount</span>
-                    <div style="color: #c2410c; background: #ffffff; padding: 6px; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                        <?php echo $get_icon( 'discount' ); ?>
+            <!-- 2. Collection, by method -->
+            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:14px; padding:18px;">
+                <div style="font-size:13px; font-weight:700; color:#166534; text-transform:uppercase; letter-spacing:0.5px;">Collection</div>
+                <?php foreach ( $m as $key => $row ) :
+                    $method_name = $names[ $key ] ?? ( 'split' === $key ? 'Split (old)' : ucfirst( $key ) ); ?>
+                    <div style="display:flex; justify-content:space-between; font-size:14px; color:#14532d; margin-top:8px;">
+                        <span><?php echo esc_html( $method_name ); ?> <span style="color:#64748b; font-size:12px;">(<?php echo intval( $row['n'] ); ?>)</span></span>
+                        <strong><?php echo $money( $row['total'] ); ?></strong>
                     </div>
-                </div>
-                <div style="font-size: 13px; color: #9a3412; margin-bottom: 4px;">
-                    Bills: <strong style="font-weight: 700; color: #7c2d12;"><?php echo intval( $disc->n ); ?></strong>
-                </div>
-                <div style="font-size: 20px; font-weight: 800; color: #c2410c;">
-                    <?php echo $money( $disc->total ); ?>
-                </div>
-            </div>
-
-            <!-- Split Bills Card -->
-            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 18px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <span style="font-size: 13px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Split Bills</span>
-                    <div style="color: #166534; background: #ffffff; padding: 6px; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                        <?php echo $get_icon( 'split' ); ?>
-                    </div>
-                </div>
-                <div style="font-size: 13px; color: #15803d; margin-bottom: 4px;">
-                    Count: <strong style="font-weight: 700; color: #14532d;"><?php echo intval( $split_bills ); ?></strong>
-                </div>
-                <div style="font-size: 20px; font-weight: 800; color: #166534;">
-                    <?php echo intval( $split_bills ); ?> Bills
-                </div>
-            </div>
-
-            <!-- Refunds Card -->
-            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 14px; padding: 18px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <span style="font-size: 13px; font-weight: 700; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px;">Refunds</span>
-                    <div style="color: #991b1b; background: #ffffff; padding: 6px; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                        <?php echo $get_icon( 'refunds' ); ?>
-                    </div>
-                </div>
-                <div style="font-size: 13px; color: #b91c1c; margin-bottom: 4px;">
-                    Count: <strong style="font-weight: 700; color: #7f1d1d;"><?php echo intval( $ref->n ); ?></strong>
-                </div>
-                <div style="font-size: 20px; font-weight: 800; color: #dc2626;">
-                    − <?php echo $money( $ref->total ); ?>
-                </div>
-            </div>
-
-            <!-- Due Collected Card -->
-            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 18px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <span style="font-size: 13px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Due Collected</span>
-                </div>
-                <div style="font-size: 13px; color: #15803d; margin-bottom: 4px;">
-                    Payments: <strong style="color: #14532d;"><?php echo intval( $due_count ); ?></strong>
-                </div>
-                <div style="font-size: 20px; font-weight: 800; color: #166534;">
-                    <?php echo $money( $due_total ); ?>
-                </div>
-                <?php foreach ( $due_rows as $dr ) : ?>
-                    <div style="font-size: 12px; color: #15803d; margin-top: 4px;"><?php echo esc_html( $names[ $dr->method ] ?? $dr->method ); ?>: <?php echo $money( $dr->total ); ?></div>
                 <?php endforeach; ?>
-                <div style="font-size: 11px; color: #64748b; margin-top: 8px;">Old credit (বাকি) received in this period. Not part of bill sales.</div>
+                <?php if ( empty( $m ) ) : ?><div style="font-size:13px; color:#64748b; margin-top:8px;">No collection in this period.</div><?php endif; ?>
+                <div style="display:flex; justify-content:space-between; font-size:14px; color:#14532d; margin-top:10px; padding-top:10px; border-top:1px dashed #86efac;">
+                    <span>Total collected</span><strong><?php echo $money( $gross ); ?></strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:13px; color:#b91c1c; margin-top:4px;">
+                    <span>Less refunds</span><span>− <?php echo $money( $ref->total ); ?></span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:13px; color:#475569; margin-top:4px;">
+                    <span>Rounding (+/−)</span><span><?php echo ( $rounding_total >= 0 ? '+ ' : '− ' ) . $money( abs( $rounding_total ) ); ?></span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:15px; font-weight:800; color:#14532d; margin-top:6px;">
+                    <span>Net collected</span><span><?php echo $money( $net_collected ); ?></span>
+                </div>
             </div>
 
-            <!-- Net Collected Card -->
-            <div style="background: #1e293b; border: 2px solid #0f172a; border-radius: 14px; padding: 18px; color: #ffffff;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <span style="font-size: 13px; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px;">Net Collected</span>
-                    <div style="color: #0f172a; background: #38bdf8; padding: 6px; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                        <?php echo $get_icon( 'net' ); ?>
-                    </div>
-                </div>
-                <div style="font-size: 13px; color: #94a3b8; margin-bottom: 4px;">
-                    Final Revenue
-                </div>
-                <div style="font-size: 20px; font-weight: 800; color: #ffffff;">
-                    <?php echo $money( $net_collected ); ?>
-                </div>
-                <div style="font-size: 12px; color: #fdba74; margin-top: 8px;">
-                    Credit given (বাকিতে, not in cash): <strong><?php echo $money( $credit_given ); ?></strong>
-                </div>
+            <!-- 3. Discount -->
+            <div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:14px; padding:18px;">
+                <div style="font-size:13px; font-weight:700; color:#c2410c; text-transform:uppercase; letter-spacing:0.5px;">Discount</div>
+                <div style="font-size:24px; font-weight:800; color:#c2410c; margin-top:10px;"><?php echo $money( $disc->total ); ?></div>
+                <div style="font-size:13px; color:#9a3412; margin-top:6px;">Bills: <strong><?php echo intval( $disc->n ); ?></strong></div>
+            </div>
+
+            <!-- 4. Split Bills -->
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:14px; padding:18px;">
+                <div style="font-size:13px; font-weight:700; color:#1e40af; text-transform:uppercase; letter-spacing:0.5px;">Split Bills</div>
+                <div style="font-size:24px; font-weight:800; color:#1e3a8a; margin-top:10px;"><?php echo intval( $split_bills ); ?> Bills</div>
+                <div style="font-size:13px; color:#1e40af; margin-top:6px;">Paid with more than one method</div>
+            </div>
+
+            <!-- 5. Refunds -->
+            <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:14px; padding:18px;">
+                <div style="font-size:13px; font-weight:700; color:#b91c1c; text-transform:uppercase; letter-spacing:0.5px;">Refunds</div>
+                <div style="font-size:24px; font-weight:800; color:#b91c1c; margin-top:10px;">− <?php echo $money( $ref->total ); ?></div>
+                <div style="font-size:13px; color:#991b1b; margin-top:6px;">Bills: <strong><?php echo intval( $ref->n ); ?></strong></div>
+            </div>
+
+            <!-- 6. Due & Collection -->
+            <div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:14px; padding:18px;">
+                <div style="font-size:13px; font-weight:700; color:#6b21a8; text-transform:uppercase; letter-spacing:0.5px;">Due &amp; Collection</div>
+                <div style="font-size:13px; color:#6b21a8; margin-top:10px;">Due given (বাকি): <strong><?php echo intval( $credit_row->n ); ?></strong> · <strong><?php echo $money( $credit_row->total ); ?></strong></div>
+                <div style="font-size:13px; color:#6b21a8; margin-top:6px;">Due collected (আদায়): <strong><?php echo intval( $due_count ); ?></strong> · <strong><?php echo $money( $due_total ); ?></strong></div>
+                <?php foreach ( $due_rows as $dr ) : ?>
+                    <div style="font-size:12px; color:#7e22ce; margin-top:3px;">&nbsp;&nbsp;<?php echo esc_html( $names[ $dr->method ] ?? $dr->method ); ?>: <?php echo $money( $dr->total ); ?></div>
+                <?php endforeach; ?>
+                <div style="font-size:13px; font-weight:700; color:#581c87; margin-top:10px; padding-top:8px; border-top:1px dashed #d8b4fe;">Total due outstanding: <?php echo $money( $outstanding ); ?></div>
             </div>
 
         </div>
     </div>
     <?php
     return ob_get_clean();
-}   
+}

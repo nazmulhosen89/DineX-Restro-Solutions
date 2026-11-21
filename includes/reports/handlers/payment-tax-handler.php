@@ -36,10 +36,10 @@ function handle_fetch_payment_report() {
             "SELECT
                 COALESCE(NULLIF(TRIM(payment_method), ''), 'unknown') AS method,
                 COUNT(id)         AS total_orders,
-                SUM(COALESCE(final_total, grand_total)) AS total_amount,
-                AVG(COALESCE(final_total, grand_total)) AS avg_amount,
-                MIN(COALESCE(final_total, grand_total)) AS min_amount,
-                MAX(COALESCE(final_total, grand_total)) AS max_amount
+                SUM(ROUND(COALESCE(final_total, grand_total), 0)) AS total_amount,
+                AVG(ROUND(COALESCE(final_total, grand_total), 0)) AS avg_amount,
+                MIN(ROUND(COALESCE(final_total, grand_total), 0)) AS min_amount,
+                MAX(ROUND(COALESCE(final_total, grand_total), 0)) AS max_amount
              FROM {$orders_table}
              WHERE restaurant_id = %d
                AND DATE(created_at) BETWEEN %s AND %s
@@ -56,7 +56,7 @@ function handle_fetch_payment_report() {
                 DATE(created_at) AS order_date,
                 COALESCE(NULLIF(TRIM(payment_method), ''), 'unknown') AS method,
                 COUNT(id)         AS orders,
-                SUM(COALESCE(final_total, grand_total)) AS amount
+                SUM(ROUND(COALESCE(final_total, grand_total), 0)) AS amount
              FROM {$orders_table}
              WHERE restaurant_id = %d
                AND DATE(created_at) BETWEEN %s AND %s
@@ -294,16 +294,17 @@ function handle_fetch_payment_report() {
                 o.order_status,
                 o.payment_status,
                 o.grand_total,
-                COALESCE(o.final_total, o.grand_total) AS payable,
+                ROUND(COALESCE(o.final_total, o.grand_total), 0) AS payable,
                 COALESCE(o.amount_received, 0)          AS amount_received,
-                (COALESCE(o.final_total, o.grand_total) - COALESCE(o.amount_received, 0)) AS due_amount,
+                (ROUND(COALESCE(o.final_total, o.grand_total), 0) - COALESCE(o.amount_received, 0)) AS due_amount,
                 o.created_at,
                 COALESCE(u.display_name, CONCAT('User #', o.waiter_id)) AS staff_name
              FROM {$orders_table} o
              LEFT JOIN {$wpdb->prefix}users u ON u.ID = o.waiter_id
              WHERE o.restaurant_id = %d
                AND DATE(o.created_at) BETWEEN %s AND %s
-               AND (o.payment_status = 'unpaid' OR o.payment_status IS NULL OR o.payment_status = '')
+               AND ( o.payment_status = 'unpaid' OR o.payment_status IS NULL OR o.payment_status = ''
+                      OR EXISTS (SELECT 1 FROM {$wpdb->prefix}qrrs_dues d2 WHERE d2.order_id = o.id AND d2.amount > 0) )
              ORDER BY o.created_at DESC",
             $res_id, $start_date, $end_date
         ));
@@ -484,7 +485,7 @@ function handle_fetch_tax_report() {
             SUM(total_amount)    AS subtotal,
             SUM(COALESCE(tax_amount, 0))      AS total_vat,
             SUM(COALESCE(service_charge, 0))  AS total_service,
-            SUM(grand_total)     AS grand_total,
+            SUM(ROUND(COALESCE(final_total, grand_total), 0)) AS grand_total,
             AVG(CASE WHEN tax_amount > 0 THEN (tax_amount / NULLIF(total_amount, 0)) * 100 END) AS avg_vat_pct,
             AVG(CASE WHEN service_charge > 0 THEN (service_charge / NULLIF(total_amount, 0)) * 100 END) AS avg_svc_pct
          FROM {$orders_table}

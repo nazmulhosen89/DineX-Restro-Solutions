@@ -215,13 +215,13 @@ function handle_fetch_order_report() {
             "SELECT
                 DATE(created_at)     AS order_date,
                 COUNT(id)            AS total_orders,
-                SUM(grand_total)     AS total_revenue,
-                AVG(grand_total)     AS avg_value,
-                MIN(grand_total)     AS min_value,
-                MAX(grand_total)     AS max_value,
-                AVG(CASE WHEN LOWER(table_name) NOT IN ('take out','takeout','delivery') THEN grand_total END) AS avg_dinein,
-                AVG(CASE WHEN LOWER(table_name) IN ('take out','takeout') THEN grand_total END)               AS avg_takeaway,
-                AVG(CASE WHEN LOWER(table_name) = 'delivery' THEN grand_total END)                            AS avg_delivery
+                SUM(CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) ELSE grand_total END)     AS total_revenue,
+                AVG(CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) ELSE grand_total END)     AS avg_value,
+                MIN(CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) ELSE grand_total END)     AS min_value,
+                MAX(CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) ELSE grand_total END)     AS max_value,
+                AVG(CASE WHEN LOWER(table_name) NOT IN ('take out','takeout','delivery') THEN CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) ELSE grand_total END END) AS avg_dinein,
+                AVG(CASE WHEN LOWER(table_name) IN ('take out','takeout') THEN CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) ELSE grand_total END END)               AS avg_takeaway,
+                AVG(CASE WHEN LOWER(table_name) = 'delivery' THEN CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) ELSE grand_total END END)                            AS avg_delivery
              FROM {$orders_table}
              WHERE restaurant_id = %d
                AND DATE(created_at) BETWEEN %s AND %s
@@ -370,8 +370,8 @@ function handle_fetch_order_report() {
             "SELECT
                 HOUR(created_at)  AS order_hour,
                 COUNT(id)         AS total_orders,
-                SUM(grand_total)  AS total_revenue,
-                AVG(grand_total)  AS avg_value
+                SUM(CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) ELSE grand_total END)  AS total_revenue,
+                AVG(CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) ELSE grand_total END)  AS avg_value
              FROM {$orders_table}
              WHERE restaurant_id = %d
                AND DATE(created_at) BETWEEN %s AND %s
@@ -574,5 +574,3 @@ function handle_fetch_order_report() {
     wp_send_json_error('Invalid report type.');
 }
 add_action('wp_ajax_fetch_order_report', 'handle_fetch_order_report');
-
-
