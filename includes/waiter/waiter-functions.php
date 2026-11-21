@@ -339,6 +339,7 @@ function handle_waiter_status_update() {
 
     $updated = $wpdb->update($wpdb->prefix.'qrrs_orders', $update, ['id' => $order_id]);
     if ($updated !== false) {
+        do_action( 'qrrs_order_status_changed', $order_id, $status );
         if ( function_exists( 'qrrs_audit' ) ) {
             $rid_s = (int) $wpdb->get_var( $wpdb->prepare( "SELECT restaurant_id FROM {$wpdb->prefix}qrrs_orders WHERE id = %d", $order_id ) );
             qrrs_audit( 'order_status_changed', 'order', $order_id, [ 'status' => $status, 'source' => 'waiter' ], $rid_s );

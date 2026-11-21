@@ -91,10 +91,15 @@ function loadAllOrders() {
         const kitchenMode = res.data.kitchen_mode || 'active_kitchen';
         
         
-        if (orders.length > lastOrderCountDash && !isMutedDash) {
-            dashSound.currentTime = 0;
-            dashSound.play().catch(e => console.log('Intervention required'));
+        // Sound: only when an order id is new (first load stays silent)
+        if (window.dashKnownIds !== undefined) {
+            const hasNewDash = orders.some(o => window.dashKnownIds.indexOf(o.id) === -1);
+            if (hasNewDash && !isMutedDash) {
+                dashSound.currentTime = 0;
+                dashSound.play().catch(e => console.log('Intervention required'));
+            }
         }
+        window.dashKnownIds = orders.map(o => o.id);
         lastOrderCountDash = orders.length;
 
         let html = '';
@@ -305,5 +310,5 @@ function goToBilling(orderId) {
 }
 
 jQuery(document).ready(loadAllOrders);
-setInterval(loadAllOrders, 50000);
+setInterval(loadAllOrders, 10000);
 </script>

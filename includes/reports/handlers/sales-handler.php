@@ -10,6 +10,7 @@ function handle_fetch_sales_report_data() {
     global $wpdb;
 
     $res_id      = intval($params['restaurant_id']);
+    if ( function_exists( 'qrrs_sync_payment_lines' ) ) { qrrs_sync_payment_lines( $res_id ); }
     $date_range  = isset($params['date_range']) ? sanitize_text_field($params['date_range']) : '';
     
     if ( empty($date_range) ) {

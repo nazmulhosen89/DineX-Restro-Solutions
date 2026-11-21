@@ -23,6 +23,8 @@ if (!$active_res_id) {
 }
 
 
+if ( function_exists( 'qrrs_sync_payment_lines' ) && ! empty( $active_res_id ) ) { qrrs_sync_payment_lines( intval( $active_res_id ) ); }
+
 if ( isset($_POST['complete_order_id']) ) {
     $order_to_complete  = intval($_POST['complete_order_id']);
     $discount_type      = sanitize_text_field($_POST['discount_type'] ?? 'none');
@@ -102,7 +104,8 @@ if ( isset($_POST['complete_order_id']) ) {
         );
 
         // Record the payment as a line (single payment too), so the daily closing counts it by method
-        if ( function_exists( 'qrrs_payments_sum' ) && 0 === qrrs_payments_sum( $order_to_complete ) && ( ! $credit_on || min( $final_total, $amount_received ) > 0.005 ) ) {
+        $existing_lines = (float) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(amount),0) FROM {$wpdb->prefix}qrrs_payments WHERE order_id = %d", intval( $order_to_complete ) ) );
+        if ( $existing_lines <= 0.005 && ( ! $credit_on || min( $final_total, $amount_received ) > 0.005 ) ) {
             $line_method = array_key_exists( $collect_method, qrrs_payment_methods() ) ? $collect_method : 'other';
             $wpdb->insert( $wpdb->prefix . 'qrrs_payments', [
                 'order_id'      => $order_to_complete,
@@ -113,6 +116,9 @@ if ( isset($_POST['complete_order_id']) ) {
                 'created_by'    => get_current_user_id(),
                 'created_at'    => current_time( 'mysql' ),
             ] );
+            if ( $wpdb->last_error ) {
+                error_log( 'QRRS: payment line not saved for order ' . $order_to_complete . ': ' . $wpdb->last_error );
+            }
         }
 
         if ( $credit_on ) {
@@ -151,7 +157,7 @@ $billing_stats = $wpdb->get_row($wpdb->prepare("
         SUM(CASE WHEN order_status IN ('pending', 'processing') THEN 1 ELSE 0 END) as pending_orders,
         SUM(CASE WHEN order_status = 'completed' THEN COALESCE(final_total, grand_total) ELSE 0 END) as total_collection,
         SUM(CASE WHEN order_status IN ('settle_bill', 'billing', 'out_for_delivery', 'delivered') AND COALESCE(payment_status,'') <> 'paid' THEN grand_total ELSE 0 END) as pending_collection,
-        AVG(CASE WHEN order_status = 'completed' THEN COALESCE(final_total, grand_total) END) as avg_order
+        AVG(CASE WHEN payment_status = 'paid' THEN COALESCE(final_total, grand_total) END) as avg_order
     FROM $orders_table 
     WHERE restaurant_id = %d AND DATE(created_at) = %s", $active_res_id, $today));
 
@@ -200,13 +206,12 @@ $selected_order_id = isset($_GET['order_id']) ? intval($_GET['order_id']) : 0;
     <h2 style="margin-bottom: 20px;">💳 Billing & POS System (<?php echo date('d M, Y', strtotime($today)); ?>)</h2>
 
     <div class="billing-stats-grid">
-        <div class="b-stat-card b-total"><small>Today's Total Orders</small><strong><?php echo $billing_stats->total_orders ?: 0; ?></strong></div>
-        <div class="b-stat-card b-pending-order"><small>Orders In Kitchen</small><strong><?php echo $billing_stats->pending_orders ?: 0; ?></strong></div>
-        <div class="b-stat-card b-collection"><small>Total Collection (cash in today)</small><strong><?php echo number_format( round( $cash_in_today ), 2 ); ?> ৳</strong><small style="display:block; font-size:11px; color:#64748b; margin-top:4px;">Bills <?php echo number_format( round( $bill_cash_today ), 2 ); ?> · Due collected <?php echo number_format( round( $due_in_today ), 2 ); ?></small></div>
-<div class="b-stat-card"><small>Credit Given Today (বাকি)</small><strong style="color: #c2410c;"><?php echo number_format( round( $credit_today ), 2 ); ?> ৳</strong></div>
-<div class="b-stat-card"><small>Customer Due Outstanding</small><strong style="color: #dc2626;"><?php echo number_format( round( $due_outstanding ), 2 ); ?> ৳</strong></div>
-        <div class="b-stat-card b-pending-cash"><small>Pending Collection</small><strong style="color: #e67e22;"><?php echo number_format(round($billing_stats->pending_collection ?: 0), 2); ?> ৳</strong></div>
-        <div class="b-stat-card b-avg"><small>Avg. Order Value</small><strong><?php echo number_format($billing_stats->avg_order ?: 0, 2); ?> ৳</strong></div>
+            <div class="b-stat-card b-total"><small>Today's Total Orders</small><strong><?php echo intval( $billing_stats->total_orders ?: 0 ); ?></strong></div>
+            <div class="b-stat-card b-collection"><small>Total Collection</small><strong><?php echo number_format( round( $cash_in_today ), 2 ); ?> ৳</strong></div>
+            <div class="b-stat-card b-pending-cash"><small>Pending Collection</small><strong style="color: #e67e22;"><?php echo number_format( round( (float) $billing_stats->pending_collection ), 2 ); ?> ৳</strong></div>
+            <div class="b-stat-card b-avg"><small>Avg. Order Value</small><strong><?php echo number_format( round( (float) $billing_stats->avg_order, 2 ), 2 ); ?> ৳</strong></div>
+            <div class="b-stat-card"><small>Credit Given Today (বাকি)</small><strong style="color: #c2410c;"><?php echo number_format( round( $credit_today ), 2 ); ?> ৳</strong></div>
+            <div class="b-stat-card"><small>Customer Due Outstanding</small><strong style="color: #dc2626;"><?php echo number_format( round( $due_outstanding ), 2 ); ?> ৳</strong></div>
     </div>
 
     <div class="billing-main-wrapper">

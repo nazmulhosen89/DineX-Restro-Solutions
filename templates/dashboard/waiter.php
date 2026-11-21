@@ -179,6 +179,7 @@ $has_item_type = in_array('item_type', $item_cols);
             <div class="floor-grid">
                 <?php foreach ($tables_data as $table):
                     $is_occupied = !empty($table->active_order_id);
+                    $is_inactive = (($table->status ?? '') === 'inactive');
                     $w_id = intval($table->waiter_id);
                     
                     $user_label = "";
@@ -188,8 +189,8 @@ $has_item_type = in_array('item_type', $item_cols);
                         else $user_label = $table->waiter_name ?: "Other Waiter";
                     }
                 ?>
-                <div class="floor-table <?php echo $is_occupied ? 'is-busy' : 'is-free'; ?>"
-                    <?php if (!$is_occupied) echo 'onclick="openPopup(\'new\',null,\''.esc_js($table->table_name).'\')"'; ?>>
+                <div class="floor-table <?php echo $is_inactive ? 'is-inactive' : ($is_occupied ? 'is-busy' : 'is-free'); ?>" <?php echo $is_inactive ? 'style="opacity:.45;"' : ''; ?>
+                    <?php if (!$is_occupied && !$is_inactive) echo 'onclick="openPopup(\'new\',null,\''.esc_js($table->table_name).'\')"'; ?>>
                     <div class="table-name"><?php echo esc_html($table->table_name); ?></div>
                         <div style="font-size: 9px; opacity: 0.6;">🪑 Cap: <?php echo intval($table->capacity); ?></div>
 
@@ -197,7 +198,7 @@ $has_item_type = in_array('item_type', $item_cols);
                             <div class="table-status" style="color:var(--wt-cyan); font-weight:bold;"><?php echo ucfirst($table->order_status); ?></div>
                             <div class="table-user" style="font-size:9px; opacity:0.8; margin-top:2px;">👤 <?php echo esc_html($user_label); ?></div>
                         <?php else: ?>
-                            <div class="table-status">Vacant</div>
+                            <div class="table-status"><?php echo $is_inactive ? 'Inactive' : 'Vacant'; ?></div>
                             <div class="add-mark">+</div>
                         <?php endif; ?>
                 </div>
@@ -369,14 +370,15 @@ $has_item_type = in_array('item_type', $item_cols);
                     if (!empty($tables_data)) :
                         foreach ($tables_data as $t):
                             $is_occupied = !empty($t->active_order_id);
+                            $is_inactive = (($t->status ?? '') === 'inactive');
                             
                             $box_class = $is_occupied ? 'v-table-box occupied-table' : 'v-table-box vacant-table';
-                            $onclick_attr = !$is_occupied ? 'onclick="selectTable(\''.esc_js($t->table_name).'\')"' : '';
-                            $style_attr = $is_occupied ? 'style="opacity: 0.55; cursor: not-allowed; border: 1px dashed #ef4444;"' : 'style="cursor: pointer;"';
+                            $onclick_attr = (!$is_occupied && !$is_inactive) ? 'onclick="selectTable(\''.esc_js($t->table_name).'\')"' : '';
+                            $style_attr = ($is_occupied || $is_inactive) ? 'style="opacity: 0.55; cursor: not-allowed; border: 1px dashed #ef4444;"' : 'style="cursor: pointer;"';
                     ?>
                     <div class="<?php echo $box_class; ?>" <?php echo $style_attr; ?> <?php echo $onclick_attr; ?>>
                         <div style="font-size:28px;margin-bottom:8px;">🪑</div>
-                        <strong><?php echo esc_html($t->table_name); ?></strong>
+                        <strong><?php echo esc_html($t->table_name); ?></strong><?php if ($is_inactive) echo ' <small style="color:#94a3b8;">(Inactive)</small>'; ?>
                         <span style="display:block;font-size:11px;opacity:.5;margin-top:4px;">Capacity: <?php echo intval($t->capacity); ?></span>
                         
                         <?php if ($is_occupied): ?>

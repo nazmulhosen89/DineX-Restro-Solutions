@@ -21,6 +21,15 @@ $stats = $wpdb->get_row($wpdb->prepare(
     $active_res_id, $today
 ));
 
+// Today's due: given (বাকিতে) and collected (আদায়)
+$today_credit = (float) $wpdb->get_var($wpdb->prepare(
+    "SELECT COALESCE(SUM(amount),0) FROM {$wpdb->prefix}qrrs_dues WHERE restaurant_id = %d AND order_id > 0 AND DATE(created_at) = %s",
+    $active_res_id, $today
+));
+$today_due_in = (float) $wpdb->get_var($wpdb->prepare(
+    "SELECT COALESCE(SUM(amount),0) FROM {$wpdb->prefix}qrrs_due_payments WHERE restaurant_id = %d AND paid_on = %s",
+    $active_res_id, $today
+));
 // Today's rounding (+ rounds up, − rounds down)
 $today_rounding = (float) $wpdb->get_var($wpdb->prepare(
     "SELECT COALESCE(SUM(rounding_amount),0) FROM {$wpdb->prefix}qrrs_orders WHERE restaurant_id = %d AND payment_status = 'paid' AND DATE(created_at) = %s",
@@ -92,6 +101,8 @@ $top_items = $wpdb->get_results($wpdb->prepare(
                 <span class="stat-label">Today's Sales</span>
                 <h2 class="stat-value"><?php echo esc_html($currency) . number_format((float)($stats->sales ?? 0), 2); ?></h2>
                     <small style="display:block; font-size:12px; color:#64748b; margin-top:4px;">Rounding: <?php echo ($today_rounding >= 0 ? '+ ' : '− ') . esc_html($currency) . number_format(abs($today_rounding), 2); ?></small>
+                    <small style="display:block; font-size:12px; color:#9a3412; margin-top:2px;">Due given (বাকি): <?php echo esc_html($currency) . number_format($today_credit, 2); ?></small>
+                    <small style="display:block; font-size:12px; color:#6b21a8; margin-top:2px;">Due collected (আদায়): <?php echo esc_html($currency) . number_format($today_due_in, 2); ?></small>
             </div>
         </div>
 

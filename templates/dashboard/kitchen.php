@@ -189,11 +189,16 @@ function loadKitchenOrders() {
 
         const orders = res.data.orders || [];
 
-        // Sound notification
-        if (orders.length > lastOrderCount && !isMuted) {
-            orderSound.currentTime = 0;
-            orderSound.play().catch(() => {});
+        // Sound: only when an order id is new (first load stays silent)
+        const currentIds = orders.map(o => o.id);
+        if (window.kitchenKnownIds !== undefined) {
+            const hasNew = currentIds.some(id => window.kitchenKnownIds.indexOf(id) === -1);
+            if (hasNew && !isMuted) {
+                orderSound.currentTime = 0;
+                orderSound.play().catch(() => {});
+            }
         }
+        window.kitchenKnownIds = currentIds;
         lastOrderCount = orders.length;
 
         if (!orders.length) {
