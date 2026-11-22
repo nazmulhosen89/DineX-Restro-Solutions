@@ -126,7 +126,7 @@ function loadAllOrders() {
                     itemsProcessedHtml += `
                         <div style="margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 5px; ${itemStyle}">
                             ${priceDisplay}
-                            <span style="font-weight:700;">${item.qty}x</span> ${additionalLabel}${item.name}
+                            <span style="font-weight:700;">${item.qty}x</span> ${additionalLabel}${item.name}${item.low ? ' <span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:800;padding:2px 6px;border-radius:5px;margin-left:4px;">LOW STOCK</span>' : ''}
                             ${item.variant_name ? `<br><small style="margin-left:20px; color:#e67e22;"><span class="material-icons-outlined" style="font-size:13px;">subdirectory_arrow_right</span> ${item.variant_name}</small>` : ''}
                         </div>`;
                 });
