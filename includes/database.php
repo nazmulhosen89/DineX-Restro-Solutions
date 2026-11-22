@@ -85,6 +85,8 @@ class QRRS_Database {
          */
         $sql_items = "CREATE TABLE {$prefix}items (
             id bigint(20) NOT NULL AUTO_INCREMENT,
+            stock_item_id bigint(20) NOT NULL DEFAULT 0,
+            stock_qty decimal(14,4) NOT NULL DEFAULT 0.0000,
             restaurant_id bigint(20) NOT NULL,
             category_id bigint(20) NOT NULL,
             item_name varchar(255) NOT NULL,
