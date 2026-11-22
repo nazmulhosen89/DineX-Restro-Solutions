@@ -202,7 +202,13 @@ function loadAllOrders() {
                         <strong style="font-size:18px; color:#2d3436;">${o.table_name}</strong><br>
                         <small style="color:#888; font-weight:600;">#ORD-${o.id} • ${o.placement_time} (${o.time_ago})${o.ready_due_ts ? ' · <span class="qrrs-cd" data-due="' + o.ready_due_ts + '" data-now="' + o.server_now + '"></span>' : ''}</small>
                     </div>
-                    <span class="status-badge ${badgeClass}">${o.status.replace('_', ' ')}</span>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+                        <span class="status-badge ${badgeClass}">${o.status.replace('_', ' ')}</span>
+                        <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+                            ${o.big ? '<span title="Big order" style="background:#fee2e2; color:#991b1b; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">BIG ' + Number(o.amount).toFixed(0) + ' ৳</span>' : ''}
+                            ${(o.low && o.low.length) ? '<span title="' + o.low.join(', ').replace(/"/g,'&quot;') + '" style="background:#fef3c7; color:#92400e; font-size:11px; font-weight:800; padding:3px 8px; border-radius:6px;">LOW STOCK</span>' : ''}
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div style="background:#f9f9f9; padding:12px; border-radius:10px; border:1px dashed #ddd;">
