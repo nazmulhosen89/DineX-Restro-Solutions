@@ -87,3 +87,25 @@ function qrrs_order_low_stock_items( $order_id ) {
 function qrrs_is_big_order( $amount ) {
     return (float) $amount >= (float) get_option( 'qrrs_big_order_amount', 2000 );
 }
+
+/** Is this menu item low on stock (linked stock item or any recipe ingredient)? */
+function qrrs_item_is_low( $item_id, $restaurant_id ) {
+    global $wpdb;
+    $p = $wpdb->prefix;
+    $direct = (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$p}qrrs_items it
+         JOIN {$p}qrrs_inventory_items i ON i.id = it.stock_item_id
+         WHERE it.id = %d AND it.stock_item_id > 0 AND i.status = 'active' AND i.current_stock <= i.min_stock_level",
+        intval( $item_id )
+    ) );
+    if ( $direct > 0 ) return true;
+    $recipe = (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$p}qrrs_recipes r
+         JOIN {$p}qrrs_recipe_items ri ON ri.recipe_id = r.id
+         JOIN {$p}qrrs_inventory_items i ON i.id = ri.inventory_item_id
+         WHERE r.menu_item_id = %d AND r.restaurant_id = %d AND r.status = 'active'
+           AND i.status = 'active' AND i.current_stock <= i.min_stock_level",
+        intval( $item_id ), intval( $restaurant_id )
+    ) );
+    return $recipe > 0;
+}
