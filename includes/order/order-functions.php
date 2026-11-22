@@ -208,7 +208,8 @@ function handle_fetch_all_orders_dashboard() {
                 'price'       => (float) $item->price,
                 'line_total'  => $line_total,
                 'item_type'   => $item->item_type,
-                'variant_name'=> $item->variants_selected
+                'variant_name'=> $item->variants_selected,
+                'low'         => function_exists( 'qrrs_item_is_low' ) ? qrrs_item_is_low( $item->item_id, $order->restaurant_id ) : false
             ];
         }
 
