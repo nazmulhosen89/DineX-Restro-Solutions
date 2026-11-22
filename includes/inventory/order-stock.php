@@ -150,6 +150,36 @@ function qrrs_order_stock_deduct( $order_id ) {
             }
         }
 
+        // No ingredients to deduct (no recipe, or an empty recipe): use the stock item linked to the menu item
+        if ( empty( $ingredients ) ) {
+            $lnk = $wpdb->get_row( $wpdb->prepare(
+                "SELECT stock_item_id, stock_qty FROM {$wpdb->prefix}qrrs_items WHERE id = %d", intval( $line->item_id )
+            ) );
+            if ( $lnk && intval( $lnk->stock_item_id ) > 0 && (float) $lnk->stock_qty > 0 ) {
+                $unit_cost = (float) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT cost_per_unit FROM {$wpdb->prefix}qrrs_inventory_items WHERE id = %d AND restaurant_id = %d",
+                    intval( $lnk->stock_item_id ), $rid
+                ) );
+                $mv = qrrs_inventory_add_stock_movement( [
+                    'restaurant_id'     => $rid,
+                    'inventory_item_id' => intval( $lnk->stock_item_id ),
+                    'movement_type'     => 'sale',
+                    'quantity_out'      => (float) $lnk->stock_qty * intval( $line->quantity ),
+                    'unit_cost'         => $unit_cost,
+                    'reference_type'    => 'order',
+                    'reference_id'      => $order_id,
+                    'note'              => 'Sold: ' . $line->item_name . ' x' . intval( $line->quantity ),
+                    'created_by'        => 0,
+                    'allow_negative'    => true,
+                    'in_transaction'    => true,
+                ] );
+                if ( false === $mv ) {
+                    $wpdb->query( 'ROLLBACK' );
+                    return false;
+                }
+            }
+        }
+
         // Mark the line as processed (also when the item has no recipe at all)
         $wpdb->update(
             $lines_t,
