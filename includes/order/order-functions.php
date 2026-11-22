@@ -282,6 +282,9 @@ if ( $order_datetime ) {
             'time_ago'       => $time_diff_text,
             'ready_due_ts'   => qrrs_ready_due_ts_by_id( $order->id ),
             'paid'           => 'paid' === (string) $wpdb->get_var( $wpdb->prepare( "SELECT payment_status FROM {$wpdb->prefix}qrrs_orders WHERE id = %d", intval( $order->id ) ) ),
+            'amount'         => round( (float) $calculated_subtotal + (float) $order->tax_amount + (float) $order->service_charge + (float) $order->delivery_charge, 2 ),
+            'big'            => function_exists( 'qrrs_is_big_order' ) && qrrs_is_big_order( (float) $calculated_subtotal + (float) $order->tax_amount + (float) $order->service_charge + (float) $order->delivery_charge ),
+            'low'            => function_exists( 'qrrs_order_low_stock_items' ) ? qrrs_order_low_stock_items( $order->id ) : [],
             'server_now'     => time(),
             'items'          => $items_data
         ];
