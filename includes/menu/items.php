@@ -46,7 +46,9 @@ if ( isset($_POST['save_item_action']) ) {
         'portion_size'  => sanitize_text_field($_POST['portion_size']),
         'prep_time'     => sanitize_text_field($_POST['prep_time']),
         'is_available'  => isset($_POST['is_available']) ? 1 : 0,
-        'is_tax_free'   => isset($_POST['is_tax_free']) ? 1 : 0 
+        'is_tax_free'   => isset($_POST['is_tax_free']) ? 1 : 0,
+        'stock_item_id' => isset($_POST['track_stock']) ? intval($_POST['stock_item_id'] ?? 0) : 0,
+        'stock_qty'     => isset($_POST['track_stock']) ? floatval($_POST['stock_qty'] ?? 0) : 0
     ];
 
     $saved_item_id = 0;
@@ -248,6 +250,35 @@ $active_res_name = $wpdb->get_var($wpdb->prepare("SELECT restaurant_name FROM $r
                     <input type="checkbox" name="is_available" <?php echo (!isset($edit_item->is_available) || $edit_item->is_available) ? 'checked' : ''; ?> style="width: 16px; height: 16px;"> 
                     ✅ Available in Menu
                 </label>
+            </div>
+            <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0; margin-top:10px;">
+                <label style="cursor:pointer; font-weight:700; font-size:13px; color:#334155; display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" id="track_stock" name="track_stock" value="1" <?php echo intval( $edit_item->stock_item_id ?? 0 ) > 0 ? 'checked' : ''; ?> onchange="qrrsToggleStock(this)">
+                    📦 Stock থেকে কাটবে (বিক্রিতে inventory item থেকে কমবে)
+                </label>
+                <div class="stock-link-fields" style="font-weight:700; font-size:13px; color:#334155; margin:10px 0 6px;">Stock item</div>
+                <div class="stock-link-fields" style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <select name="stock_item_id" style="padding:9px; border:1px solid #cbd5e1; border-radius:8px; min-width:240px;">
+                        <option value="0">— none —</option>
+                        <?php
+                        $__rid_link = ! empty( $edit_item->restaurant_id ) ? intval( $edit_item->restaurant_id ) : intval( function_exists('qrrs_inventory_get_active_restaurant_id') ? qrrs_inventory_get_active_restaurant_id() : 0 );
+                        if ( ! $__rid_link ) { $__rid_link = intval( $_GET['restaurant_id'] ?? 0 ); }
+                        $__stock = $wpdb->get_results( $wpdb->prepare( "SELECT id, item_name, status FROM {$wpdb->prefix}qrrs_inventory_items WHERE restaurant_id = %d AND status <> 'deleted' ORDER BY item_name", $__rid_link ) );
+                        foreach ( $__stock as $__si ) : ?>
+                            <option value="<?php echo intval( $__si->id ); ?>" <?php selected( intval( $edit_item->stock_item_id ?? 0 ), intval( $__si->id ) ); ?>><?php echo esc_html( $__si->item_name ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="stock-link-fields" style="font-size:12px; color:#64748b; margin-top:6px; width:100%;">Stock items found: <?php echo count( $__stock ); ?> (restaurant <?php echo intval( $__rid_link ); ?>)</div>
+                    <input type="number" step="0.0001" min="0" name="stock_qty" value="<?php echo esc_attr( $edit_item->stock_qty ?? 0 ); ?>" placeholder="Qty per sale" style="padding:9px; border:1px solid #cbd5e1; border-radius:8px; width:140px;">
+                </div>
+                <script>
+                function qrrsToggleStock(cb) {
+                    document.querySelectorAll('.stock-link-fields').forEach(function (el) {
+                        el.style.display = cb.checked ? '' : 'none';
+                    });
+                }
+                qrrsToggleStock(document.getElementById('track_stock'));
+                </script>
             </div>
 
             <div class="form-footer">
