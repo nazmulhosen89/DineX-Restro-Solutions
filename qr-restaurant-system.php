@@ -62,6 +62,7 @@ require_once QRRS_PATH . 'includes/accounts/customer-due.php';
 require_once QRRS_PATH . 'includes/reports/export.php';
 require_once QRRS_PATH . 'includes/realtime/live.php';
 require_once QRRS_PATH . 'includes/printer/printer.php';
+require_once QRRS_PATH . 'includes/inventory/alerts.php';
 require_once QRRS_PATH . 'includes/kitchen/kot.php';
 
 // Mark plugin app pages so the theme does not apply smooth-scroll (Lenis) to them.
