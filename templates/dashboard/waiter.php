@@ -770,7 +770,7 @@ $has_item_type = in_array('item_type', $item_cols);
                   +   (img ? '<img src="'+img+'" class="item-img-w" style="font-size:0" onerror="this.outerHTML=\'<div class=item-img-w>🍽️</div>\'">' : '<div class="item-img-w">🍽️</div>')
                   +   '<div class="item-body-w"><h4>'+(item.item_name||'Item')+'</h4>'
                   +   '<div class="item-bottom-w">'
-                  +     '<span class="item-price-w">৳'+parseFloat(item.price).toFixed(2)+'</span>'
+                  +     (item.offer ? '<span style="display:flex;align-items:center;gap:6px;"><span style="text-decoration:line-through;color:#94a3b8;font-size:12px;">৳'+parseFloat(item.price).toFixed(2)+'</span><span class="item-price-w" style="color:#dc2626;">৳'+offerPrice(item,parseFloat(item.price)).toFixed(2)+'</span><span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:800;padding:2px 6px;border-radius:5px;">'+String(item.offer.name||'Offer').replace(/</g,'&lt;')+'</span></span>' : '<span class="item-price-w">৳'+parseFloat(item.price).toFixed(2)+'</span>'+(item.offer_names||[]).filter(function(n){ return !(item.offer && n === item.offer.name); }).map(function(n){ return ' <span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:800;padding:2px 6px;border-radius:5px;">'+String(n).replace(/</g,'&lt;')+'</span>'; }).join('')+((item.variant_offers&&item.variant_offers.length)?' <span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:800;padding:2px 6px;border-radius:5px;">'+String(item.variant_offers[0].name||'Offer').replace(/</g,'&lt;')+'</span>':''))
                   +     '<div class="item-ctrl-w" id="wctrl-'+item.id+'" style="'+(qty>0?'display:flex':'')+'" onclick="event.stopPropagation();">'
                   +       '<button class="qty-btn-w" onclick="changeQty('+item.id+',-1);event.stopPropagation();">−</button>'
                   +       '<span class="qty-num-w" id="wqnum-'+item.id+'">'+qty+'</span>'
@@ -818,7 +818,7 @@ $has_item_type = in_array('item_type', $item_cols);
                     html += '<label style="display:flex;align-items:center;gap:12px;padding:10px;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:8px;cursor:pointer;"><input type="radio" name="wsize_'+g.id+'" value="0" checked data-price="0" data-name=""><span>None</span></label>';
                 }
                 g.values.forEach(function(v){
-                    html += '<label style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:8px;cursor:pointer;"><input type="radio" class="w_size_rb" name="wsize_'+g.id+'" value="'+v.id+'" data-price="'+v.price+'" data-name="'+wEsc(v.name)+'"><span style="font-weight:500;">'+wEsc(v.name)+'</span><span style="margin-left:auto;font-weight:700;">'+Number(v.price).toFixed(2)+'৳</span></label>';
+                    html += '<label style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:8px;cursor:pointer;"><input type="radio" class="w_size_rb" name="wsize_'+g.id+'" value="'+v.id+'" data-price="'+v.price+'" data-name="'+wEsc(v.name)+'"><span style="font-weight:500;">'+wEsc(v.name)+'</span><span style="margin-left:auto;text-align:right;">'+(function(){ var op = pickOffer(item, [v.id], parseFloat(v.price)); var offp = offerPrice({ offer: op }, parseFloat(v.price)); return (op && offp < parseFloat(v.price)) ? '<span style="text-decoration:line-through;color:#94a3b8;font-size:12px;margin-right:6px;">'+Number(v.price).toFixed(2)+'৳</span><span style="font-weight:800;color:#dc2626;">'+offp.toFixed(2)+'৳</span>' : '<span style="font-weight:700;">'+Number(v.price).toFixed(2)+'৳</span>'; })()+'</span></label>';
                 });
             } else {
                 g.values.forEach(function(v){
@@ -858,7 +858,15 @@ $has_item_type = in_array('item_type', $item_cols);
 
     function wUpdateTotal() {
         var el = document.getElementById('w_vtotal'); if (!el || !waiterPending) return;
-        el.textContent = 'Total: ' + wSelection().price.toFixed(2) + '৳';
+        var sel = wSelection();
+        var off = pickOffer(waiterPending.item, sel.sizeIds, sel.price);
+        var offPrice = offerPrice({ offer: off }, sel.price);
+        if (off && offPrice < sel.price) {
+            el.innerHTML = '<span style="text-decoration:line-through;color:#94a3b8;font-size:14px;margin-right:8px;">' + sel.price.toFixed(2) + '৳</span>'
+                + '<span style="color:#dc2626;font-size:18px;font-weight:800;">' + offPrice.toFixed(2) + '৳</span>';
+        } else {
+            el.textContent = 'Total: ' + sel.price.toFixed(2) + '৳';
+        }
     }
 
     window.confirmVariant = function() {
@@ -877,35 +885,61 @@ $has_item_type = in_array('item_type', $item_cols);
 
     window.closeVariant = function() { $('#variant-modal').hide(); };
 
+    // The offer for this line: the whole-item offer, or a variant offer when the chosen size matches it
+    function pickOffer(item, sizeIds, base) {
+        var best = item.offer || null;
+        function disc(o, p) { if (!o) return 0; return o.type === 'percent' ? p * o.amount / 100 : Math.min(o.amount, p); }
+        var bestD = disc(best, base);
+        (item.variant_offers || []).forEach(function (vo) {
+            var hit = (sizeIds || []).some(function (id) { return vo.ids.indexOf(parseInt(id, 10)) !== -1; });
+            if (!hit) return;
+            var d = disc(vo, base);
+            if (d > bestD) { bestD = d; best = vo; }
+        });
+        return best;
+    }
+
+    function offerPrice(item, p, qty) {
+        var o = item && item.offer;
+        if (!o) return p;
+        var q = qty || 1;
+        if (o.type === 'buyget') return p;
+        if (o.type === 'percent') return Math.max(0, Math.round(p * (1 - o.amount / 100) * 100) / 100);
+        return Math.max(0, Math.round((p - o.amount) * 100) / 100);
+    }
+
     function addToCart(item, variants, sizeIds, sizeNames, unitPrice) {
         sizeIds = sizeIds || []; sizeNames = sizeNames || [];
-        var price = (unitPrice === undefined || unitPrice === null) ? parseFloat(item.price) : unitPrice;
+        var base = (unitPrice === undefined || unitPrice === null) ? parseFloat(item.price) : unitPrice;
+        var offerObj = pickOffer(item, sizeIds, base);
+        var price = offerPrice({ offer: offerObj }, base, 1);
         var label = sizeNames.join(' + ');
         var key = item.id + '|' + sizeIds.join(',') + '|' + variants.join(',');
         var ex = cart.find(function(x){ return x.key===key; });
         if (ex) ex.qty++;
-        else cart.push({key:key, id:item.id, name:item.item_name + (label ? ' ('+label+')' : ''), price:price, variants:variants, size_ids:sizeIds, qty:1, tax_free:parseInt(item.is_tax_free||0)});
+        else cart.push({key:key, id:item.id, name:item.item_name + (label ? ' ('+label+')' : ''), price:price, base:base, offer:offerObj || null, buyget:item.buyget || null, variants:variants, size_ids:sizeIds, qty:1, tax_free:parseInt(item.is_tax_free||0)});
         syncUI(item.id); renderCart();
     }
     // Grid "−": removes one from the most recently added line of this item
     window.changeQty = function(id, delta) {
         if (delta >= 0) return;
-        var idxs = []; cart.forEach(function(x, i){ if (x.id == id) idxs.push(i); });
+        var idxs = []; cart.forEach(function(x, i){ if (x.id == id && !x.auto_free) idxs.push(i); });
         if (!idxs.length) return;
         changeLine(idxs[idxs.length - 1], -1);
     };
 
     // Cart row buttons: change exactly this line
     window.changeLine = function(index, delta) {
-        var it = cart[index]; if (!it) return;
+        var it = cart[index]; if (!it || it.auto_free) return;
         var itemId = it.id;
         it.qty += delta;
+        if (it.base !== undefined) { it.price = offerPrice({ offer: it.offer }, it.base, it.qty); }
         if (it.qty <= 0) cart.splice(index, 1);
         syncUI(itemId); renderCart();
     };
 
     function syncUI(id) {
-        var qty=cart.reduce(function(sum,x){ return x.id==id ? sum+x.qty : sum; },0);
+        var qty=cart.reduce(function(sum,x){ return (x.id==id && !x.auto_free) ? sum+x.qty : sum; },0);
         var badge=document.getElementById('wbadge-'+id), ctrl=document.getElementById('wctrl-'+id),
             qnum=document.getElementById('wqnum-'+id), card=document.getElementById('wcard-'+id);
         if (badge){badge.innerText=qty;badge.style.display=qty>0?'flex':'none';}
@@ -914,7 +948,22 @@ $has_item_type = in_array('item_type', $item_cols);
         if (card) qty>0?card.classList.add('selected'):card.classList.remove('selected');
     }
 
+    // Buy X get Y: the free units are separate cart lines at price 0, kept in step with the paid lines
+    function syncFree() {
+        cart = cart.filter(function (x) { return !x.auto_free; });
+        var extra = [];
+        cart.forEach(function (x) {
+            if (!x.buyget || !x.buyget.amount || !x.buyget.get_qty) return;
+            var n = Math.floor(x.qty / x.buyget.amount) * x.buyget.get_qty;
+            if (n <= 0) return;
+            extra.push({ key: 'free|' + x.key, id: x.buyget.free_item_id, name: 'Free: ' + x.buyget.free_name + ' (' + x.buyget.name + ')',
+                         price: 0, base: 0, qty: n, variants: [], offer: null, buyget: null, auto_free: true, size_ids: [] });
+        });
+        cart = cart.concat(extra);
+    }
+
     function renderCart() {
+        syncFree();
         if (!cart.length) {
             $('#waiter-cart-items').html('<div style="text-align:center;color:#94a3b8;margin-top:40px;font-size:13px;">Your cart is empty</div>');
             $('#waiter-cart-summary').html(''); return;
@@ -1002,7 +1051,7 @@ $has_item_type = in_array('item_type', $item_cols);
         var btn = document.getElementById('finalBtn') || document.querySelector('#waiter-cart-summary .place-order-btn');
         if (btn) { btn.disabled=true; btn.textContent='Sending...'; }
         
-        var processed = cart.map(function(i){ return {id:i.id,name:i.name,price:i.price,qty:i.qty,variants_selected:i.variants.join(', '),size_value_ids:(i.size_ids||[]).join(',')}; });
+        var processed = cart.map(function(i){ return {id:i.id,name:i.name,price:(i.base!==undefined?i.base:i.price),qty:i.qty,variants_selected:i.variants.join(', '),size_value_ids:(i.size_ids||[]).join(','),auto_free:i.auto_free?1:0}; });
 
         // ✨ LOCAL DEVICE TIME GENERATOR (MySQL Format: YYYY-MM-DD HH:MM:SS)
         var now = new Date();
