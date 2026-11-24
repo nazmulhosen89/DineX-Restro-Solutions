@@ -53,6 +53,51 @@
         });
     }
 
+    /* ---------- offers (same rules as the server) ---------- */
+    function linePrice(base, o, qty) {
+        if (!o) return base;
+        var q = qty || 1;
+        if (o.type === 'buyget') return base;                       // free units are separate lines
+        if (o.type === 'percent') return Math.max(0, Math.round(base * (1 - o.amount / 100) * 100) / 100);
+        return Math.max(0, Math.round((base - o.amount) * 100) / 100);
+    }
+    function pickOfferJS(item, sizeIds, base) {
+        var best = item.offer || null;
+        function disc(o, p) { if (!o) return 0; return o.type === 'buyget' ? 0 : (o.type === 'percent' ? p * o.amount / 100 : Math.min(o.amount, p)); }
+        var bestD = disc(best, base);
+        (item.variant_offers || []).forEach(function (vo) {
+            var hit = (sizeIds || []).some(function (id) { return vo.ids.indexOf(parseInt(id, 10)) !== -1; });
+            if (!hit) return;
+            var d = disc(vo, base);
+            if (d > bestD) { bestD = d; best = vo; }
+        });
+        return best;
+    }
+    function priceTag(i) {
+        var o = i.offer, base = Number(i.price), html = money(base);
+        if (o && o.type !== 'buyget' && linePrice(base, o, 1) < base) {
+            html = '<s style="color:#94a3b8;font-size:12px;margin-right:6px;">' + money(base) + '</s><b style="color:#dc2626;">' + money(linePrice(base, o, 1)) + '</b>';
+        }
+        (i.offer_names || []).forEach(function (n) {
+            if (o && n === o.name) return;
+            html += '<span style="display:block;margin-top:4px;background:#fef3c7;color:#92400e;font-size:10px;font-weight:800;padding:2px 6px;border-radius:5px;width:max-content;">' + esc(n) + '</span>';
+        });
+        return html;
+    }
+    // Buy X get Y: free units become separate lines at price 0, kept in step with the paid lines
+    function syncFree() {
+        S.cart = S.cart.filter(function (l) { return !l.auto_free; });
+        var extra = [];
+        S.cart.forEach(function (l) {
+            if (!l.buyget || !l.buyget.amount || !l.buyget.get_qty) return;
+            var n = Math.floor(l.qty / l.buyget.amount) * l.buyget.get_qty;
+            if (n <= 0) return;
+            extra.push({ key: 'free|' + l.key, id: l.buyget.free_item_id, name: 'Free: ' + l.buyget.free_name + ' (' + l.buyget.name + ')',
+                         price: 0, base: 0, qty: n, offer: null, buyget: null, auto_free: true, size_value_ids: '', variants_selected: '', label: '' });
+        });
+        S.cart = S.cart.concat(extra);
+    }
+
     /* ---------- grid ---------- */
     function lineFor(key) { return S.cart.filter(function (l) { return l.key === key; })[0]; }
     function renderGrid() {
@@ -61,7 +106,7 @@
         if (!items.length) { grid.innerHTML = '<div class="qpo-empty">No items in this category.</div>'; return; }
         grid.innerHTML = items.map(function (i) {
             var img = i.image ? '<img src="' + esc(i.image) + '" alt="' + esc(i.name) + '" loading="lazy">' : '🍽';
-            var price = (i.custom && !i.price) ? 'Choose size' : money(i.price);
+            var price = (i.custom && !i.price) ? 'Choose size' : priceTag(i);
             var action;
             if (i.custom) {
                 action = '<button type="button" class="qpo-add alt" data-act="options" data-id="' + i.id + '">Customize</button>';
@@ -83,6 +128,7 @@
     function cartTotal() { return S.cart.reduce(function (a, l) { return a + l.price * l.qty; }, 0); }
     function cartCount() { return S.cart.reduce(function (a, l) { return a + l.qty; }, 0); }
     function updateBar() {
+        syncFree();
         var bar = $('qpo-cartbar');
         if (!S.cart.length) { bar.hidden = true; return; }
         bar.hidden = false;
@@ -90,7 +136,7 @@
         $('qpo-carttotal').textContent = money(cartTotal());
     }
     function changeLine(key, delta) {
-        var l = lineFor(key); if (!l) return;
+        var l = lineFor(key); if (!l || l.auto_free) return;
         l.qty += delta;
         if (l.qty <= 0) S.cart = S.cart.filter(function (x) { return x !== l; });
         renderGrid(); updateBar();
@@ -103,7 +149,7 @@
     function addSimple(item) {
         var key = item.id + '||';
         var l = lineFor(key);
-        if (l) l.qty++; else S.cart.push({ key: key, id: item.id, name: item.name, price: item.price, qty: 1, size_value_ids: '', variants_selected: '', label: '' });
+        if (l) l.qty++; else { var o1 = pickOfferJS(item, [], Number(item.price)); S.cart.push({ key: key, id: item.id, name: item.name, base: Number(item.price), offer: o1, buyget: item.buyget || null, price: linePrice(Number(item.price), o1, 1), qty: 1, size_value_ids: '', variants_selected: '', label: '' }); };
         renderGrid(); updateBar();
     }
 
@@ -163,7 +209,7 @@
                 var key = item.id + '|' + sizeIds.join(',') + '|' + addons.join(',');
                 var ex = lineFor(key);
                 if (ex) ex.qty++;
-                else S.cart.push({ key: key, id: item.id, name: item.name + (label ? ' (' + label + ')' : ''), price: price, qty: 1, size_value_ids: sizeIds.join(','), variants_selected: addons.join(', '), label: label });
+                else S.cart.push({ key: key, id: item.id, name: item.name + (label ? ' (' + label + ')' : ''), base: price, offer: pickOfferJS(item, sizeIds, price), buyget: item.buyget || null, price: linePrice(price, pickOfferJS(item, sizeIds, price), 1), qty: 1, size_value_ids: sizeIds.join(','), variants_selected: addons.join(', '), label: label });
                 closeSheet(); renderGrid(); updateBar();
             };
         });
@@ -289,7 +335,7 @@
         if (!/^(?:\+?880|0)?1[3-9]\d{8}$/.test(phone)) { err.textContent = 'Please enter a valid mobile number.'; return; }
         if (S.data.otp === 'test' && S.verifiedPhone !== phone) { err.textContent = 'Please verify your mobile number with the code first.'; return; }
         var data = { order_type: S.type, rt: ROOM, self: SELF ? '1' : '', customer_name: name, customer_phone: phone, delivery_note: note,
-            items: JSON.stringify(S.cart.map(function (l) { return { id: l.id, qty: l.qty, size_value_ids: l.size_value_ids, variants_selected: l.variants_selected }; })) };
+            items: JSON.stringify(S.cart.filter(function (l) { return !l.auto_free; }).map(function (l) { return { id: l.id, qty: l.qty, size_value_ids: l.size_value_ids, variants_selected: l.variants_selected }; })) };
         if (S.type === 'delivery') {
             var area = document.getElementById('qpo-area').value;
             var addr = document.getElementById('qpo-addr').value.trim();
