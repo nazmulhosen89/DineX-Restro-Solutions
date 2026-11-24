@@ -539,7 +539,7 @@ function handle_qr_order_placement() {
             'size_value_ids'    => sanitize_text_field($item['size_value_ids'] ?? ''),
             'size_name'         => sanitize_text_field($item['size_name'] ?? ''),
             'quantity'          => intval($item['qty']),
-            'price'             => floatval($item['price']),
+            'price'             => function_exists( 'qrrs_offer_price_for_order_item' ) ? qrrs_offer_price_for_order_item( $order_id, intval( $item['id'] ?? 0 ), floatval( $item['price'] ), $item['size_value_ids'] ?? '', intval( $item['qty'] ?? 1 ) ) : floatval( $item['price'] ),
             'item_status'       => $order_status === 'ready' ? 'ready' : 'pending'
         ]);
     }
