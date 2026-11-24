@@ -86,6 +86,22 @@ if ( $active_res_id ) {
 
 
 $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'reports';
+
+// Settings: one menu, several sections (each section opens an existing page)
+$is_settings = false;
+$settings_sections = [
+    'restaurants' => [ 'Restaurants',     'restaurants' ],
+    'staff'       => [ 'Staff',           'add-staff' ],
+    'online'      => [ 'Online & Delivery', 'online-settings' ],
+    'offers'      => [ 'Offers',          'offers' ],
+    'license'     => [ 'License',         'license' ],
+];
+if ( 'settings' === $current_tab && current_user_can( 'administrator' ) ) {
+    $is_settings  = true;
+    $settings_sub = isset( $_GET['set'] ) ? sanitize_key( $_GET['set'] ) : 'restaurants';
+    if ( ! isset( $settings_sections[ $settings_sub ] ) ) $settings_sub = 'restaurants';
+    $current_tab = $settings_sections[ $settings_sub ][1];
+}
 ?>
 
 <div class="qrrs-dashboard-container">
@@ -185,12 +201,9 @@ $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'report
                 </li>
                 <?php endif; ?>
                 <?php if ( current_user_can( 'administrator' ) ) : ?>
-                    <li class="admin-menu-item"><a href="?tab=restaurants" class="<?php echo $current_tab == 'restaurants' ? 'active' : ''; ?>"><i class="fa-solid fa-shop"></i> Manage Restaurants</a></li>
-                    <li class="admin-menu-item"><a href="?tab=add-staff" class="<?php echo $current_tab == 'add-staff' ? 'active' : ''; ?>"><i class="fa-solid fa-user-plus"></i> Create Staff</a></li>
+                    <li class="admin-menu-item"><a href="?tab=settings" class="<?php echo ! empty( $is_settings ) ? 'active' : ''; ?>"><i class="fa-solid fa-gear"></i> Settings</a></li>
                     <li class="admin-menu-item"><a href="?tab=audit" class="<?php echo $current_tab == 'audit' ? 'active' : ''; ?>"><i class="fa-solid fa-clipboard-list"></i> Advanced Change Tracker</a></li>
                     <li class="admin-menu-item"><a href="?tab=backup" class="<?php echo $current_tab == 'backup' ? 'active' : ''; ?>"><i class="fa-solid fa-shield-halved"></i> Backup</a></li>
-                    <li class="admin-menu-item"><a href="?tab=online-settings" class="<?php echo $current_tab == 'online-settings' ? 'active' : ''; ?>"><i class="fa-solid fa-globe"></i> Online &amp; Delivery</a></li>
-                    <li class="admin-menu-item"><a href="?tab=license" class="<?php echo $current_tab == 'license' ? 'active' : ''; ?>"><i class="fa-solid fa-key"></i> License</a></li>
                 <?php endif; ?>
             </ul>
         </aside>
@@ -222,7 +235,19 @@ $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'report
                         }
                 echo '</div></div>';
             } else {
+                if ( ! empty( $is_settings ) ) {
+                    echo '<div style="display:flex; gap:8px; flex-wrap:wrap; margin:0 0 18px;">';
+                    foreach ( $settings_sections as $key => $info ) {
+                        $on = ( $key === $settings_sub );
+                        echo '<a href="' . esc_url( add_query_arg( [ 'tab' => 'settings', 'set' => $key ], home_url( '/restaurant-dashboard/' ) ) ) . '" style="padding:9px 16px; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; border:1px solid ' . ( $on ? '#2563eb' : '#cbd5e1' ) . '; background:' . ( $on ? '#eff6ff' : '#fff' ) . '; color:' . ( $on ? '#1d4ed8' : '#334155' ) . ';">' . esc_html( $info[0] ) . '</a>';
+                    }
+                    echo '</div>';
+                }
+
                 switch ($current_tab) {
+                    case 'offers':
+                        if ( function_exists( 'qrrs_offers_render' ) ) { qrrs_offers_render( qrrs_inventory_get_active_restaurant_id() ); }
+                        break;
                     case 'restaurants':
                         QRRS_Auth::is_admin_only();
                         include QRRS_PATH . 'includes/restaurant/restaurant-create.php';
