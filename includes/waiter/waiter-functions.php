@@ -38,6 +38,14 @@ function qrrs_get_waiter_menu() {
     ", $res_id));
 
     if ($wpdb->last_error) { wp_send_json_error('DB Error: '.$wpdb->last_error); return; }
+    if ( function_exists( 'qrrs_best_offer_for_item' ) && $items ) {
+        foreach ( $items as $it ) {
+            $it->offer = qrrs_best_offer_for_item( $res_id, intval( $it->id ), floatval( $it->price ) );
+            $it->variant_offers = function_exists( 'qrrs_variant_offers_for_item' ) ? qrrs_variant_offers_for_item( $res_id, intval( $it->id ) ) : [];
+            $it->buyget = function_exists( 'qrrs_buyget_for_item' ) ? qrrs_buyget_for_item( $res_id, intval( $it->id ) ) : null;
+            $it->offer_names = function_exists( 'qrrs_offer_names_for_item' ) ? qrrs_offer_names_for_item( $res_id, intval( $it->id ) ) : [];
+        }
+    }
     wp_send_json_success(['categories' => $categories ?: [], 'items' => $items ?: []]);
 }
 
@@ -166,7 +174,7 @@ function qrrs_submit_waiter_order() {
                 'order_id'          => $order_id,
                 'item_id'           => intval($item['id']),
                 'item_name'         => sanitize_text_field($item['name']),
-                'price'             => floatval($item['price']),
+                'price'             => function_exists( 'qrrs_offer_price_for_order_item' ) ? qrrs_offer_price_for_order_item( $order_id, intval( $item['id'] ?? 0 ), floatval( $item['price'] ), $item['size_value_ids'] ?? '', intval( $item['qty'] ?? 1 ) ) : floatval( $item['price'] ),
                 'quantity'          => intval($item['qty']),
                 'variants_selected' => sanitize_text_field($item['variants_selected'] ?? ''),
                 'size_value_ids'    => sanitize_text_field($item['size_value_ids'] ?? ''),
@@ -196,7 +204,7 @@ function qrrs_submit_waiter_order() {
                 'order_id'          => $order_id,
                 'item_id'           => intval($item['id']),
                 'item_name'         => sanitize_text_field($item['name']),
-                'price'             => floatval($item['price']),
+                'price'             => function_exists( 'qrrs_offer_price_for_order_item' ) ? qrrs_offer_price_for_order_item( $order_id, intval( $item['id'] ?? 0 ), floatval( $item['price'] ), $item['size_value_ids'] ?? '', intval( $item['qty'] ?? 1 ) ) : floatval( $item['price'] ),
                 'quantity'          => intval($item['qty']),
                 'variants_selected' => sanitize_text_field($item['variants_selected'] ?? ''),
                 'size_value_ids'    => sanitize_text_field($item['size_value_ids'] ?? ''),
@@ -245,7 +253,7 @@ function qrrs_submit_waiter_order() {
                     'order_id'          => $order_id,
                     'item_id'           => $item_id,
                     'item_name'         => sanitize_text_field($item['name']),
-                    'price'             => floatval($item['price']),
+                    'price'             => function_exists( 'qrrs_offer_price_for_order_item' ) ? qrrs_offer_price_for_order_item( $order_id, intval( $item['id'] ?? 0 ), floatval( $item['price'] ), $item['size_value_ids'] ?? '', intval( $item['qty'] ?? 1 ) ) : floatval( $item['price'] ),
                     'quantity'          => $qty,
                     'variants_selected' => $variants,
                     'size_value_ids'    => sanitize_text_field($item['size_value_ids'] ?? ''),
