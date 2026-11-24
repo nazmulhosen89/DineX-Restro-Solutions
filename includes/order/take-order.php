@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 global $wpdb;
 $current_user_id = get_current_user_id();
 
+
 if ( current_user_can('administrator') ) {
     if ( ! session_id() ) session_start();
     $restaurant_id = isset($_SESSION['qrrs_active_res_id']) 
@@ -73,13 +74,16 @@ $occupied_table_names = array_keys($occupied_map);
 $plugin_url = plugin_dir_url(dirname(dirname(__FILE__)));
 $can_use_delivery = function_exists( 'qrrs_can_use_feature' ) ? qrrs_can_use_feature( 'delivery' ) : true;
 $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_for( intval( $restaurant_id ) ) : [ 'dine_in' => true, 'take_out' => true, 'delivery' => true ];
+
 ?>
+
+
 
 <div class="pos-wrapper">
     <div id="pos-overlay" class="pos-overlay">
         <div id="step-type" class="selection-card">
             <h1 style="margin-bottom:20px;">New Order</h1>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px;">
                 <div class="cat-item" style="border:1px solid #eee; border-radius:15px; padding:25px; <?php echo empty( $svc_on['dine_in'] ) ? 'display:none;' : ''; ?>" onclick="selectType('dine_in')">🍽️<br>Dine In</div>
                 <div class="cat-item" style="border:1px solid #eee; border-radius:15px; padding:25px; <?php echo empty( $svc_on['take_out'] ) ? 'display:none;' : ''; ?>" onclick="selectType('take_out')">🛍️<br>Take Out</div>
                 <div class="cat-item <?php echo $can_use_delivery ? '' : 'disabled-option'; ?>" style="<?php echo empty( $svc_on['delivery'] ) ? 'display:none;' : ''; ?>border:1px solid #eee; border-radius:15px; padding:25px; <?php echo $can_use_delivery ? 'cursor:pointer;' : 'opacity:0.6; cursor:not-allowed;'; ?> position: relative;" onclick="selectType('delivery')" title="<?php echo $can_use_delivery ? 'Delivery' : 'Available in Pro'; ?>">
@@ -88,7 +92,7 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
                         <small style="display:block; font-size:10px; color:#ef4444; margin-top:5px; font-weight:bold;">Pro</small>
                     <?php endif; ?>
                 </div>
-                <div class="cat-item" style="border:1px solid #eee; border-radius:15px; padding:25px; <?php echo empty( $svc_on['self_service'] ) ? 'display:none;' : ''; ?>" onclick="selectSelfService()">🧾<br>Self-service</div>
+                <div class="cat-item" style="border:1px solid #eee; border-radius:15px; padding:25px; <?php echo empty( $svc_on['self_service'] ) ? 'display:none;' : ''; ?>" onclick="selectSelfService()">🧾<br>Self-service<small style="display:block; font-size:11px; color:#64748b; margin-top:4px;">Pay at counter</small></div>
             </div>
         </div>
         <div id="step-table" class="selection-card" style="display:none;">
@@ -97,7 +101,6 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
                 <div class="table-legend">
                     <div class="legend-dot"><span style="background:#22c55e;"></span> Free</div>
                     <div class="legend-dot"><span style="background:#f97316;"></span> Occupied</div>
-                    <div class="legend-dot"><span style="background:#dc2626;"></span> Inactive</div>
                 </div>
             </div>
 
@@ -105,26 +108,21 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
                 <?php 
                 $free_count = 0;
                 $occupied_count = 0;
-                $inactive_count = 0;
-
                 foreach($tables as $t): 
-                    $is_inactive = ($t->status === 'inactive');
-                    $is_occupied = (!$is_inactive && in_array($t->table_name, $occupied_table_names));
+                    $is_occupied = in_array($t->table_name, $occupied_table_names);
                     $capacity = !empty($t->capacity) ? intval($t->capacity) : 4;
                     
-                    if($is_inactive) {
-                        $inactive_count++;
-                        $onclick = "showInactiveAlert('" . esc_js($t->table_name) . "')";
-                    } elseif($is_occupied) {
+                    if($is_occupied) {
                         $occupied_count++;
                         $odata = $occupied_map[$t->table_name] ?? null;
                         $taken_by = $odata ? ($odata->taken_by ?: 'Staff') : 'Customer';
                         $item_count = $odata ? intval($odata->item_count) : 0;
                         
+                        // WordPress Timezone Fix & Placement Time Formatting
                         if ( $odata ) {
                             $order_timestamp = qrrs_local_ts($odata->created_at);
                             $time_ago        = human_time_diff($order_timestamp, current_time('timestamp')) . ' ago';
-                            $placement_time  = wp_date('h:i A', $order_timestamp);
+                            $placement_time  = wp_date('h:i A', $order_timestamp); // e.g. 08:43 AM
                         } else {
                             $time_ago        = '';
                             $placement_time  = '';
@@ -140,9 +138,8 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
                     $chair_icons = '';
                     for($i = 0; $i < min($capacity, 6); $i++) $chair_icons .= '🪑';
                 ?>
-                <div class="tbl-card <?php echo $is_inactive ? 'inactive-table' : ($is_occupied ? 'occupied' : 'free'); ?>" 
-                    onclick="<?php echo $onclick; ?>"
-                    style="<?php echo $is_inactive ? '' : ''; ?>">
+                <div class="tbl-card <?php echo $is_occupied ? 'occupied' : 'free'; ?>" 
+                    onclick="<?php echo $onclick; ?>">
                     
                     <?php if($is_occupied): ?>
                     <div class="tbl-tooltip">
@@ -151,18 +148,19 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
                     <?php endif; ?>
 
                     <span class="tbl-icon">
-                        <img src="<?php echo ($is_occupied || $is_inactive)
+                        <img src="<?php echo $is_occupied 
                             ? esc_url($plugin_url . 'assets/images/table-occupied.png')
                             : esc_url($plugin_url . 'assets/images/table-free.png'); ?>" 
                             style="width:auto; height:45px; object-fit:contain;">
                     </span>
                     <div class="tbl-name"><?php echo esc_html($t->table_name); ?></div>
                     <div class="tbl-capacity">👥 <?php echo $capacity; ?> seats</div>
-                    <div class="tbl-status-pill" style="<?php echo $is_inactive ? 'background: #fee2e2; color: #dc2626;' : ''; ?>">
-                        <?php echo $is_inactive ? '● Inactive' : ($is_occupied ? '● Occupied' : '● Free'); ?>
+                    <div class="tbl-status-pill">
+                        <?php echo $is_occupied ? '● Occupied' : '● Free'; ?>
                     </div>
                     <?php if($is_occupied): ?>
                     <div class="tbl-waiter-info">
+                        <!-- <div class="tbl-waiter-avatar"><?php echo strtoupper(substr($taken_by, 0, 1)); ?></div> -->
                         <div class="tbl-waiter-name"> <?php echo esc_html($taken_by); ?></div>
                     </div>
                     <div class="tbl-order-meta"><?php echo $item_count; ?> items · <?php echo $time_ago; ?></div>
@@ -174,8 +172,7 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
             <div class="table-modal-footer">
                 <div class="table-stats-text">
                     <strong><?php echo $free_count; ?></strong> free · 
-                    <strong><?php echo $occupied_count; ?></strong> occupied · 
-                    <strong><?php echo $inactive_count; ?></strong> inactive
+                    <strong><?php echo $occupied_count; ?></strong> occupied
                 </div>
                 <button onclick="jQuery('#step-table').hide(); jQuery('#step-type').show();" 
                         style="background:none; border:1px solid #e2e8f0; padding:8px 16px; border-radius:8px; color:#64748b; cursor:pointer; font-size:13px; font-weight:600;">
@@ -188,6 +185,7 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
     <div class="sidebar-left">
         <div class="cat-item active" data-cat="all">🏠<h4>ALL</h4></div>
         <?php foreach($categories as $cat): 
+        
             $c_img = !empty($cat->image_url) ? $cat->image_url : (!empty($cat->image) ? $cat->image : '');
         ?>
             <div class="cat-item" data-cat="<?php echo $cat->id; ?>">
@@ -204,8 +202,19 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
     <div class="main-content">
         <div class="item-grid">
             <?php foreach($items as $item): 
+            
                 $i_img = !empty($item->image_url) ? $item->image_url : (!empty($item->item_image) ? $item->item_image : '');
-                $item_json = json_encode($item);
+                $item_offers = function_exists( 'qrrs_best_offer_for_item' ) ? [
+                    'offer'          => qrrs_best_offer_for_item( $restaurant_id, (int) $item->id, (float) $item->price ),
+                    'buyget'         => qrrs_buyget_for_item( $restaurant_id, (int) $item->id ),
+                    'variant_offers' => qrrs_variant_offers_for_item( $restaurant_id, (int) $item->id ),
+                    'offer_names'    => qrrs_offer_names_for_item( $restaurant_id, (int) $item->id ),
+                ] : [];
+                $item_json = json_encode( array_merge( (array) $item, $item_offers ) );
+                $__base = (float) $item->price; $__op = $__base; $__o = $item_offers['offer'] ?? null;
+                if ( $__o && 'buyget' !== $__o['type'] ) {
+                    $__op = ( 'percent' === $__o['type'] ) ? round( $__base * ( 1 - $__o['amount'] / 100 ), 2 ) : round( max( 0, $__base - $__o['amount'] ), 2 );
+                }
                 $is_avail = isset($item->is_available) ? intval($item->is_available) : 1;
             ?>
             <div class="item-card <?php echo ($is_avail === 0) ? 'out-of-stock' : ''; ?>" 
@@ -221,7 +230,17 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
                     <h4 style="margin:0 0 5px 0; font-size:14px; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                         <?php echo esc_html($item->item_name); ?>
                     </h4>
-                    <span style="font-weight:700; color:var(--primary); font-size:15px;"><?php echo number_format($item->price, 2); ?>৳</span>
+                    <div>
+                        <?php if ( $__op < $__base ) : ?>
+                            <s style="color:#94a3b8; font-size:12px; margin-right:6px;"><?php echo number_format( $__base, 2 ); ?>৳</s>
+                            <b style="color:#dc2626; font-size:15px;"><?php echo number_format( $__op, 2 ); ?>৳</b>
+                        <?php else : ?>
+                            <span style="font-weight:700; color:var(--primary); font-size:15px;"><?php echo number_format( $__base, 2 ); ?>৳</span>
+                        <?php endif; ?>
+                        <?php foreach ( ( $item_offers['offer_names'] ?? [] ) as $__n ) : if ( $__o && $__n === $__o['name'] ) continue; ?>
+                            <span style="display:block; margin-top:4px; background:#fef3c7; color:#92400e; font-size:10px; font-weight:800; padding:2px 6px; border-radius:5px; width:max-content;"><?php echo esc_html( $__n ); ?></span>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -241,6 +260,7 @@ $svc_on = function_exists( 'qrrs_online_services_for' ) ? qrrs_online_services_f
 <div id="vModal" class="v-modal">
     <div class="v-modal-content" id="vBody"></div>
 </div>
+
 
 <div id="successPopup" class="v-modal" style="display:none; z-index: 9999;">
     <div class="v-modal-content" style="text-align:center; padding: 30px; border-radius: 15px; max-width: 350px;">
@@ -289,6 +309,7 @@ function escapeDeliveryField(value) {
     });
 }
 
+
 function selectType(t) { 
     if(t === 'delivery' && !CAN_DELIVERY) {
         alert('Delivery orders are available in Pro only.');
@@ -311,9 +332,11 @@ function selectType(t) {
 function selectTable(id, n) { orderMeta.table_id = id; orderMeta.table_name = n; finalizeSelection(); }
 function selectSelfService() { orderMeta.type = 'self_service'; orderMeta.table_id = 0; orderMeta.table_name = 'Self-service'; finalizeSelection(); }
 function finalizeSelection() {
+    // Close the type/table steps immediately so the menu is always reachable
     jQuery('#step-type, #step-table').hide();
     jQuery('#pos-overlay').hide();
     jQuery('#order-meta-label').text(orderMeta.table_name);
+    console.log('[take-order] selected', orderMeta.type, orderMeta.table_id, orderMeta.table_name);
 }
 
 function openDeliveryCustomerForm() {
@@ -353,6 +376,7 @@ function confirmDeliveryCustomer() {
     closeM();
     finalizeSelection();
 }
+
 
 let pendingItem = null;
 let optionCache = {};
@@ -483,8 +507,41 @@ function confirmAddPending() {
     closeM();
 }
 
+function linePriceT(base, o) {
+    if (!o || o.type === 'buyget') return base;
+    if (o.type === 'percent') return Math.max(0, Math.round(base * (1 - o.amount / 100) * 100) / 100);
+    return Math.max(0, Math.round((base - o.amount) * 100) / 100);
+}
+function pickOfferT(item, sizeIds, base) {
+    let best = item.offer || null;
+    const disc = (o, p) => !o ? 0 : (o.type === 'buyget' ? 0 : (o.type === 'percent' ? p * o.amount / 100 : Math.min(o.amount, p)));
+    let bestD = disc(best, base);
+    (item.variant_offers || []).forEach(vo => {
+        const hit = (sizeIds || []).some(id => vo.ids.indexOf(parseInt(id, 10)) !== -1);
+        if (!hit) return;
+        const d = disc(vo, base);
+        if (d > bestD) { bestD = d; best = vo; }
+    });
+    return best;
+}
+// Buy X get Y: free units are separate lines at price 0, kept in step with the paid lines
+function syncFree() {
+    cart = cart.filter(x => !x.auto_free);
+    const extra = [];
+    cart.forEach(x => {
+        if (!x.buyget || !x.buyget.amount || !x.buyget.get_qty) return;
+        const n = Math.floor(x.qty / x.buyget.amount) * x.buyget.get_qty;
+        if (n <= 0) return;
+        extra.push({ key: 'free|' + x.key, id: x.buyget.free_item_id, name: 'Free: ' + x.buyget.free_name + ' (' + x.buyget.name + ')',
+                     price: 0, base: 0, qty: n, variants: [], size_ids: [], offer: null, buyget: null, auto_free: true, tax_free: 0 });
+    });
+    cart = cart.concat(extra);
+}
+
 function addToCart(item, variants, sizeIds = [], sizeNames = [], unitPrice = null) {
-    const price = (unitPrice === null) ? parseFloat(item.price) : unitPrice;
+    const base = (unitPrice === null) ? parseFloat(item.price) : unitPrice;
+    const o = pickOfferT(item, sizeIds, base);
+    const price = linePriceT(base, o);
     const label = sizeNames.join(' + ');
     const key = item.id + '|' + sizeIds.join(',') + '|' + variants.join(',');
     let exist = cart.find(x => x.key === key);
@@ -493,7 +550,7 @@ function addToCart(item, variants, sizeIds = [], sizeNames = [], unitPrice = nul
         cart.push({
             key: key, id: item.id,
             name: item.item_name + (label ? ' (' + label + ')' : ''),
-            price: price, variants: variants, size_ids: sizeIds,
+            price: price, base: base, offer: o, buyget: item.buyget || null, variants: variants, size_ids: sizeIds,
             qty: 1, tax_free: parseInt(item.is_tax_free || 0)
         });
     }
@@ -502,7 +559,7 @@ function addToCart(item, variants, sizeIds = [], sizeNames = [], unitPrice = nul
 
 function updateQty(key, delta) {
     let idx = cart.findIndex(x => x.key === key);
-    if(idx > -1) {
+    if(idx > -1 && !cart[idx].auto_free) {
         cart[idx].qty += delta;
         if(cart[idx].qty <= 0) cart.splice(idx, 1);
         render();
@@ -510,7 +567,9 @@ function updateQty(key, delta) {
 }
 
 function render() {
+    syncFree();
     let html = '', sub = 0, taxable = 0;
+    
     
     document.querySelectorAll('.item-qty-badge').forEach(b => b.style.display = 'none');
     document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected'));
@@ -544,7 +603,9 @@ function render() {
     document.getElementById('cart-list').innerHTML = cart.length ? html : '<div style="text-align:center; color:#94a3b8; margin-top:50px;">Empty Cart</div>';
 
     if(cart.length > 0) {
+        
         let vat = taxable * (TAX_RATE / 100);       
+        
         let sc = 0;
         let scDisplay = '';
 
@@ -560,7 +621,7 @@ function render() {
                     <span>Delivery Charge</span><span>0.00৳</span>
                 </div>`;
         } else {
-            scDisplay = `
+        scDisplay = `
                 <div style="display:flex; justify-content:space-between; font-size:14px; color:#22c55e; margin-bottom:5px;">
                     <span>S. Charge</span><span>0.00৳ (Take Out)</span>
                 </div>`;
@@ -598,11 +659,11 @@ function placeOrder(grandTotal) {
     let vatVal = taxable * (TAX_RATE / 100);
     let scVal = (orderMeta.type === 'dine_in') ? sub * (SC_RATE / 100) : 0;
 
-    let processedCart = cart.map(item => {
+    let processedCart = cart.filter(i => !i.auto_free).map(item => {
         return {
             id: item.id,
             name: item.name,
-            price: item.price,
+            price: (item.base !== undefined ? item.base : item.price),
             qty: item.qty,
             variants_selected: item.variants ? item.variants.join(', ') : '',
             size_value_ids: (item.size_ids || []).join(',')
@@ -663,6 +724,7 @@ function resetOrderBtn(btn) {
     }
 }
 
+
 function showOccupiedAlert(tableName, takenBy, itemCount, timeAgo, placementTime) {
     document.getElementById('vBody').innerHTML = `
         <div style="text-align:center; padding:10px 0;">
@@ -683,18 +745,10 @@ function showOccupiedAlert(tableName, takenBy, itemCount, timeAgo, placementTime
                     <span style="font-weight:700; font-size:13px; color:#1e293b;">${placementTime} (${timeAgo})</span>
                 </div>
             </div>
-            <button onclick="closeM()" class="btn-place-order" style="margin-top:20px; background:#1e293b;">Got it</button>
-        </div>`;
-    document.getElementById('vModal').style.display = 'flex';
-}
-
-function showInactiveAlert(tableName) {
-    document.getElementById('vBody').innerHTML = `
-        <div style="text-align:center; padding:10px 0;">
-            <div style="font-size:48px; margin-bottom:12px;">🚫</div>
-            <h3 style="margin:0 0 8px; color:#1e293b;">${tableName} is Inactive</h3>
-            <p style="color:#64748b; margin:0 0 20px; font-size:14px;">This table is currently disabled and cannot take new orders.</p>
-            <button onclick="closeM()" class="btn-place-order" style="margin-top:20px; background:#1e293b;">Got it</button>
+            <button onclick="closeM()" class="btn-place-order" 
+                    style="margin-top:20px; background:#1e293b;">
+                Got it
+            </button>
         </div>`;
     document.getElementById('vModal').style.display = 'flex';
 }
@@ -712,4 +766,5 @@ document.querySelectorAll('.cat-item[data-cat]').forEach(el => {
         });
     }
 });
+
 </script>
