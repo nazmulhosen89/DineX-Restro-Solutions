@@ -124,6 +124,10 @@ function qrrs_ajax_public_menu() {
             'image' => (string) $i->item_image, 'desc' => (string) $i->description,
             'price' => (float) $i->price, 'tax_free' => (int) $i->is_tax_free,
             'custom' => in_array( (int) $i->id, $custom_ids, true ),
+            'offer'          => function_exists( 'qrrs_best_offer_for_item' ) ? qrrs_best_offer_for_item( $rid, (int) $i->id, (float) $i->price ) : null,
+            'buyget'         => function_exists( 'qrrs_buyget_for_item' ) ? qrrs_buyget_for_item( $rid, (int) $i->id ) : null,
+            'variant_offers' => function_exists( 'qrrs_variant_offers_for_item' ) ? qrrs_variant_offers_for_item( $rid, (int) $i->id ) : [],
+            'offer_names'    => function_exists( 'qrrs_offer_names_for_item' ) ? qrrs_offer_names_for_item( $rid, (int) $i->id ) : [],
         ], $items ),
         'areas'      => array_map( fn( $a ) => [
             'id' => (int) $a->id, 'name' => $a->area_name, 'charge' => (float) $a->charge, 'min' => (float) $a->min_order,
