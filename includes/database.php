@@ -525,6 +525,32 @@ class QRRS_Database {
         ) $charset_collate;";
 
         /**
+         * Offers / happy hour
+         */
+        $sql_offers = "CREATE TABLE {$prefix}offers (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            restaurant_id bigint(20) NOT NULL,
+            name varchar(150) NOT NULL DEFAULT '',
+            offer_type varchar(10) NOT NULL DEFAULT 'percent',
+            get_qty int(11) NOT NULL DEFAULT 0,
+            free_item_id bigint(20) NOT NULL DEFAULT 0,
+            amount decimal(10,2) NOT NULL DEFAULT 0.00,
+            days varchar(20) NOT NULL DEFAULT '',
+            start_time time DEFAULT NULL,
+            end_time time DEFAULT NULL,
+            date_from date DEFAULT NULL,
+            date_to date DEFAULT NULL,
+            scope varchar(10) NOT NULL DEFAULT 'all',
+            item_ids text,
+            variant_ids text,
+            is_active tinyint(1) NOT NULL DEFAULT 1,
+            created_by bigint(20) NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY restaurant_offers (restaurant_id)
+        ) $charset_collate;";
+
+        /**
          * Audit log: who changed what, and when
          */
         $sql_audit = "CREATE TABLE {$prefix}audit_log (
@@ -732,6 +758,7 @@ class QRRS_Database {
         dbDelta( $sql_supplier_pay );
         dbDelta( $sql_dues );
         dbDelta( $sql_due_payments );
+        dbDelta( $sql_offers );
         dbDelta( $sql_rooms );
         dbDelta( $sql_stock_movements );
         dbDelta( $sql_requisitions );
