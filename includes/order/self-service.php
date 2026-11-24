@@ -27,7 +27,8 @@ function qrrs_self_slip_html( $order_id, $paid = true ) {
     ob_start(); ?>
 <html><head><meta charset="utf-8"><title>Token <?php echo esc_html( $order->token_no ); ?></title>
 <style>
-  body { font-family: monospace; width: 280px; margin: 0 auto; padding: 10px; font-size: 13px; color: #000; }
+  <?php echo function_exists( 'qrrs_print_css' ) ? qrrs_print_css( qrrs_printer_get( intval( $order->restaurant_id ) )['paper'] ) : 'body { width: 72mm; font-family: monospace; }'; ?>
+  body { margin: 0 auto; padding: 2mm; color: #000; }
   .c { text-align: center; }
   .tok { font-size: 44px; font-weight: bold; text-align: center; margin: 8px 0; }
   .row { display: flex; justify-content: space-between; gap: 8px; }
