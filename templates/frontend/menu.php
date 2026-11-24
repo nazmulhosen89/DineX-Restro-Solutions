@@ -248,7 +248,17 @@ $items = $wpdb->get_results($wpdb->prepare(
                 $i_price  = $item->price ?? 0;
                 $i_cat    = $item->category_id ?? 0;
                 $is_avail = isset($item->is_available) ? intval($item->is_available) : 1;
-                $item_json = json_encode($item);
+                $item_offers = function_exists( 'qrrs_best_offer_for_item' ) ? [
+                    'offer'          => qrrs_best_offer_for_item( $res_id, (int) $item->id, (float) $item->price ),
+                    'buyget'         => qrrs_buyget_for_item( $res_id, (int) $item->id ),
+                    'variant_offers' => qrrs_variant_offers_for_item( $res_id, (int) $item->id ),
+                    'offer_names'    => qrrs_offer_names_for_item( $res_id, (int) $item->id ),
+                ] : [];
+                $item_json = json_encode( array_merge( (array) $item, $item_offers ) );
+                $__base = (float) $item->price; $__op = $__base; $__o = $item_offers['offer'] ?? null;
+                if ( $__o && 'buyget' !== $__o['type'] ) {
+                    $__op = ( 'percent' === $__o['type'] ) ? round( $__base * ( 1 - $__o['amount'] / 100 ), 2 ) : round( max( 0, $__base - $__o['amount'] ), 2 );
+                }
             ?>
             <div class="item-card <?php echo ($is_avail === 0) ? 'out-of-stock' : ''; ?>" 
                  id="card-<?php echo $item->id; ?>" 
@@ -265,7 +275,13 @@ $items = $wpdb->get_results($wpdb->prepare(
                     </h4>
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-weight:700; color:var(--primary); font-size:16px;">
-                            <?php echo number_format($i_price, 2); ?>৳
+                            <?php if ( $__op < $__base ) : ?>
+                        <s style="color:#94a3b8; font-size:12px; margin-right:6px;"><?php echo number_format( $__base, 2 ); ?>৳</s>
+                        <b style="color:#dc2626;"><?php echo number_format( $__op, 2 ); ?>৳</b>
+                    <?php else : ?><?php echo number_format( $__base, 2 ); ?>৳<?php endif; ?>
+                    <?php foreach ( ( $item_offers['offer_names'] ?? [] ) as $__n ) : if ( $__o && $__n === $__o['name'] ) continue; ?>
+                        <span style="display:block; margin-top:4px; background:#fef3c7; color:#92400e; font-size:10px; font-weight:800; padding:2px 6px; border-radius:5px; width:max-content;"><?php echo esc_html( $__n ); ?></span>
+                    <?php endforeach; ?>
                         </span>
                         <div id="action-<?php echo $item->id; ?>" onclick="event.stopPropagation();">
                             <?php if($is_avail === 0): ?>
@@ -440,8 +456,41 @@ function confirmAdd() {
     closeM();
 }
 
+function linePriceT(base, o) {
+    if (!o || o.type === 'buyget') return base;
+    if (o.type === 'percent') return Math.max(0, Math.round(base * (1 - o.amount / 100) * 100) / 100);
+    return Math.max(0, Math.round((base - o.amount) * 100) / 100);
+}
+function pickOfferT(item, sizeIds, base) {
+    let best = item.offer || null;
+    const disc = (o, p) => !o ? 0 : (o.type === 'buyget' ? 0 : (o.type === 'percent' ? p * o.amount / 100 : Math.min(o.amount, p)));
+    let bestD = disc(best, base);
+    (item.variant_offers || []).forEach(vo => {
+        const hit = (sizeIds || []).some(id => vo.ids.indexOf(parseInt(id, 10)) !== -1);
+        if (!hit) return;
+        const d = disc(vo, base);
+        if (d > bestD) { bestD = d; best = vo; }
+    });
+    return best;
+}
+// Buy X get Y: free units are separate lines at price 0, kept in step with the paid lines
+function syncFree() {
+    cart = cart.filter(x => !x.auto_free);
+    const extra = [];
+    cart.forEach(x => {
+        if (!x.buyget || !x.buyget.amount || !x.buyget.get_qty) return;
+        const n = Math.floor(x.qty / x.buyget.amount) * x.buyget.get_qty;
+        if (n <= 0) return;
+        extra.push({ key: 'free|' + x.key, id: x.buyget.free_item_id, name: 'Free: ' + x.buyget.free_name + ' (' + x.buyget.name + ')',
+                     price: 0, base: 0, qty: n, variants: [], size_ids: [], offer: null, buyget: null, auto_free: true, tax_free: 0 });
+    });
+    cart = cart.concat(extra);
+}
+
 function addToCart(item, variants, sizeIds = [], sizeNames = [], unitPrice = null) {
-    const price = (unitPrice === null) ? parseFloat(item.price) : unitPrice;
+    const base = (unitPrice === null) ? parseFloat(item.price) : unitPrice;
+const o = pickOfferT(item, sizeIds, base);
+const price = linePriceT(base, o);
     const label = sizeNames.join(' + ');
     const key = item.id + '|' + sizeIds.join(',') + '|' + variants.join(',');
     let exist = cart.find(x => x.key === key);
@@ -452,7 +501,7 @@ function addToCart(item, variants, sizeIds = [], sizeNames = [], unitPrice = nul
             key: key,
             id: item.id,
             name: (item.item_name || item.name) + (label ? ' (' + label + ')' : ''),
-            price: price,
+            price: price, base: base, offer: o, buyget: item.buyget || null,
             variants: variants,
             size_ids: sizeIds,
             qty: 1,
@@ -475,6 +524,7 @@ function updateQty(id, delta) {
 }
 
 function render() {
+    syncFree();
     let html = '';
     let sub = 0, taxable = 0, totalItemsCount = 0;
 
@@ -639,10 +689,10 @@ function processFinalOrder(grandTotal) {
     let vatVal  = taxable * (TAX_RATE / 100);
     let scVal   = sub * (SC_RATE / 100);
 
-    let processedCart = cart.map(item => ({
+    let processedCart = cart.filter(i => !i.auto_free).map(item => ({
         id: item.id,
         name: item.name,
-        price: item.price,
+        price: (item.base !== undefined ? item.base : item.price),
         qty: item.qty,
         variants_selected: item.variants.join(', '),
         size_value_ids: (item.size_ids || []).join(',')
