@@ -169,7 +169,7 @@ function qrrs_option_render( $restaurant_id, $is_admin ) {
     $base  = add_query_arg( [ 'tab' => 'inventory', 'inv_section' => 'menu-options' ], home_url( '/restaurant-dashboard/' ) );
     $legacy_n = qrrs_legacy_variant_count( $restaurant_id );
     if ( $legacy_n > 0 ) : ?>
-    <div class="qrrs-card" style="padding:14px 20px; margin-bottom:20px !important; background:#fffbeb; border:1px solid #fde68a;">
+    <div class="qrrs-card" style="padding:14px 20px; margin-bottom:16px; background:#fffbeb; border:1px solid #fde68a;">
         <form method="post" action="<?php echo esc_url( $base ); ?>" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:0;">
             <?php wp_nonce_field( 'qrrs_inventory_action', 'qrrs_inventory_nonce' ); ?>
             <input type="hidden" name="qrrs_inventory_action" value="opt_migrate_variants">
@@ -186,7 +186,7 @@ function qrrs_option_render( $restaurant_id, $is_admin ) {
     $sel_menu = null;
     foreach ( $menus as $m ) { if ( (int) $m->id === $sel ) { $sel_menu = $m; } }
     ?>
-    <div class="qrrs-card" style="padding:16px 20px; margin-bottom:20px !important;">
+    <div class="qrrs-card" style="padding:16px 20px; margin-bottom:20px;">
         <form method="get" style="margin:0;">
             <input type="hidden" name="tab" value="inventory">
             <input type="hidden" name="inv_section" value="menu-options">
@@ -204,27 +204,19 @@ function qrrs_option_render( $restaurant_id, $is_admin ) {
     <?php if ( $sel_menu ) :
         $groups = qrrs_option_groups_for_item( $restaurant_id, $sel_menu->id );
         ?>
-        <div class="qrrs-card" style="padding:20px; margin-bottom:20px !important;">
+        <div class="qrrs-card" style="padding:20px; margin-bottom:20px;">
             <h3 style="margin-top:0;">Add option group</h3>
             <form method="post" action="<?php echo esc_url( $base ); ?>" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                 <?php wp_nonce_field( 'qrrs_inventory_action', 'qrrs_inventory_nonce' ); ?>
                 <input type="hidden" name="qrrs_inventory_action" value="opt_add_group">
                 <input type="hidden" name="menu_item_id" value="<?php echo intval( $sel_menu->id ); ?>">
-                <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
-                    <div style="flex:1; min-width:250px;">  
-                        <input type="text" name="group_name" placeholder="e.g. Size or Extra" required style="min-width:200px; padding:6px 10px;">
-                    </div>
-                    <div style="flex:1; min-width:250px;">  
-                        <select name="group_type" style="padding:6px 10px;">
-                        <option value="size">Size (pick one)</option>
-                        <option value="addon">Add-on (pick many)</option>
-                        </select>
-                    </div>
-                    <div style="flex:1; min-width:250px;">  
-                        <label style="font-size:13px;"><input type="checkbox" name="is_required" value="1" checked> Required (size)</label>
-                        <button type="submit" class="qrrs-btn-save">Add group</button>
-                    </div>
-                </div>
+                <input type="text" name="group_name" placeholder="e.g. Size or Extra" required style="min-width:200px; padding:6px 10px;">
+                <select name="group_type" style="padding:6px 10px;">
+                    <option value="size">Size (pick one)</option>
+                    <option value="addon">Add-on (pick many)</option>
+                </select>
+                <label style="font-size:13px;"><input type="checkbox" name="is_required" value="1" checked> Required (size)</label>
+                <button type="submit" class="qrrs-btn-save">Add group</button>
             </form>
         </div>
 
@@ -440,6 +432,7 @@ function qrrs_validate_order_items( $restaurant_id, array $items ) {
     $subtotal = 0.0;
 
     foreach ( $items as $it ) {
+        if ( ! empty( $it['auto_free'] ) ) continue;      // free lines are rebuilt by the server below
         $item_id = intval( $it['id'] ?? 0 );
         $qty     = intval( $it['qty'] ?? 0 );
         if ( $item_id <= 0 || $qty <= 0 || $qty > 999 ) {
@@ -522,7 +515,16 @@ function qrrs_validate_order_items( $restaurant_id, array $items ) {
         $label = implode( ' + ', $size_names );
         $name  = $menu->item_name . ( $label ? ' (' . $label . ')' : '' );
 
-        $line_total = round( $unit * $qty, 2 );
+        // The offer for this line (same rule as the order save): the shown price already includes it
+        $eff_unit = $unit;
+        if ( function_exists( 'qrrs_best_offer_for_item' ) ) {
+            $ofr = qrrs_best_offer_for_item( $restaurant_id, $item_id, $unit, $size_ids, $qty );
+            if ( $ofr ) {
+                $eff_unit = qrrs_offer_unit_price( $ofr['type'], $ofr['amount'], $ofr['get_qty'], $unit, $qty );
+            }
+        }
+
+        $line_total = round( $eff_unit * $qty, 2 );
         $lines[] = [
             'tax_free'         => (int) $menu->is_tax_free,
             'line_total'       => $line_total,
@@ -535,7 +537,33 @@ function qrrs_validate_order_items( $restaurant_id, array $items ) {
             'size_value_ids'   => implode( ',', $size_ids ),
             'size_name'        => mb_substr( $label, 0, 255 ),
         ];
-        $subtotal += $unit * $qty;
+        $subtotal += $eff_unit * $qty;
+    }
+
+    // Buy X get Y: every X paid units give Y free units, as separate lines at price 0
+    if ( function_exists( 'qrrs_buyget_for_item' ) ) {
+        $free_lines = [];
+        foreach ( $lines as $ln ) {
+            $sids = array_filter( array_map( 'intval', explode( ',', (string) $ln['size_value_ids'] ) ) );
+            $bg   = qrrs_buyget_for_item( $restaurant_id, intval( $ln['item_id'] ), $sids );
+            if ( ! $bg || $bg['amount'] < 1 ) continue;
+            $n = (int) floor( $ln['qty'] / $bg['amount'] ) * (int) $bg['get_qty'];
+            if ( $n <= 0 ) continue;
+            $fmenu = $wpdb->get_row( $wpdb->prepare( "SELECT is_tax_free FROM $menu_t WHERE id = %d AND restaurant_id = %d", $bg['free_item_id'], $restaurant_id ) );
+            $free_lines[] = [
+                'tax_free'         => $fmenu ? (int) $fmenu->is_tax_free : 0,
+                'line_total'       => 0.0,
+                'id'               => $bg['free_item_id'],
+                'item_id'          => $bg['free_item_id'],
+                'name'             => mb_substr( 'Free: ' . $bg['free_name'] . ' (' . $bg['name'] . ')', 0, 100 ),
+                'qty'              => $n,
+                'price'            => 0.0,
+                'variants_selected'=> '',
+                'size_value_ids'   => '',
+                'size_name'        => '',
+            ];
+        }
+        $lines = array_merge( $lines, $free_lines );
     }
 
     $taxable = 0.0;
