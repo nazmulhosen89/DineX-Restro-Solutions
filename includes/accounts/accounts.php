@@ -200,15 +200,8 @@ function qrrs_accounts_render( $rid ) {
         <?php elseif ( 'closing' === $tab ) : ?>
             <?php if ( function_exists( 'qrrs_closing_render' ) ) { qrrs_closing_render( $rid ); } ?>
 
-        <?php else : 
-            $staff = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}qrrs_staff WHERE restaurant_id = %d AND status = 'active'", $rid ) );
-            ?>
-            <div class="qrrs-acc-hr-card">
-                <div class="hr-icon">👥</div>
-                <div class="hr-stat-badge">Active Workforce</div>
-                <h3><?php echo $staff; ?> Active Staff Members</h3>
-                <p>Staff profiles and roles are managed in the <strong>Create Staff</strong> menu. Attendance logs, shift scheduling, and automated payroll modules are scheduled for upcoming updates.</p>
-            </div>
+        <?php else : ?>
+            <?php if ( function_exists( 'qrrs_hr_render' ) ) { qrrs_hr_render( $rid ); } ?>
         <?php endif; ?>
     </div>
     <?php

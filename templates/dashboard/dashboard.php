@@ -9,7 +9,7 @@ if ( ! session_id() ) {
     session_start();
 }
 
-QRRS_Auth::has_permission('qr_manager'); 
+if ( ! qrrs_is_full_admin() && ! qrrs_is_system_user_only() ) { QRRS_Auth::has_permission('qr_manager'); } 
 
 // Licence check
 $license = qrrs_check_system_license(); 
@@ -65,7 +65,7 @@ endif;
 global $wpdb;
 $user_id = get_current_user_id();
 
-if ( current_user_can('administrator') ) {
+if ( qrrs_is_full_admin() ) {
     if ( isset($_GET['set_res']) ) {
         $_SESSION['qrrs_active_res_id'] = intval($_GET['set_res']);
     }
@@ -94,9 +94,10 @@ $settings_sections = [
     'staff'       => [ 'Staff',           'add-staff' ],
     'online'      => [ 'Online & Delivery', 'online-settings' ],
     'offers'      => [ 'Offers',          'offers' ],
+    'roles'       => [ 'Roles',           'roles' ],
     'license'     => [ 'License',         'license' ],
 ];
-if ( 'settings' === $current_tab && current_user_can( 'administrator' ) ) {
+if ( 'settings' === $current_tab && qrrs_is_full_admin() ) {
     $is_settings  = true;
     $settings_sub = isset( $_GET['set'] ) ? sanitize_key( $_GET['set'] ) : 'restaurants';
     if ( ! isset( $settings_sections[ $settings_sub ] ) ) $settings_sub = 'restaurants';
@@ -144,7 +145,7 @@ if ( 'settings' === $current_tab && current_user_can( 'administrator' ) ) {
         <div class="user-actions" style="display:flex; align-items:center; gap:15px;">
             <a href="<?php echo home_url(); ?>" class="home-btn" style="text-decoration:none; color:#333;"><span class="material-icons-outlined">home</span></a>
             
-            <?php if ( current_user_can('administrator') ) : ?>
+            <?php if ( qrrs_is_full_admin() ) : ?>
                 <select onchange="location.href='?tab=<?php echo $current_tab; ?>&set_res=' + this.value" style="padding: 8px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; background: #fff; cursor: pointer;">
                     <option value="">-- Switch Restaurant --</option>
                     <?php 
@@ -163,13 +164,13 @@ if ( 'settings' === $current_tab && current_user_can( 'administrator' ) ) {
                     </div>
                     <div class="user-info">
                         <span class="user-name" style="display:block; font-size:14px; font-weight:600;"><?php echo wp_get_current_user()->display_name; ?></span>
-                        <small class="user-role" style="color:#666;"><?php echo wp_get_current_user()->roles[0]; ?></small>
+                        <small class="user-role" style="color:#666;"><?php echo esc_html( qrrs_role_label( wp_get_current_user() ) ); ?></small>
                     </div>
                 </div>
 
                 <div id="user-dropdown" class="qrrs-dropdown-menu" style="display:none; position:absolute; right:0; top:100%; background:#fff; border:1px solid #ddd; border-radius:8px; box-shadow:0 10px 15px rgba(0,0,0,0.1); width:200px; z-index:9999;">
                     <a href="?tab=profile" class="dropdown-item" style="display:block; padding:10px 15px; text-decoration:none; color:#333; border-bottom:1px solid #eee;">👤 My Profile</a>
-                    <?php if ( current_user_can( 'administrator' ) ) : ?>
+                    <?php if ( qrrs_is_full_admin() ) : ?>
                         <a href="?tab=license" class="dropdown-item" style="display:block; padding:10px 15px; text-decoration:none; color:#333; border-bottom:1px solid #eee;">License Info</a>
                     <?php endif; ?>
                     <a href="<?php echo wp_logout_url(home_url('/restaurant-login/')); ?>" class="dropdown-item logout" style="display:block; padding:10px 15px; text-decoration:none; color:#d9534f;">👋 Logout</a>
@@ -181,36 +182,36 @@ if ( 'settings' === $current_tab && current_user_can( 'administrator' ) ) {
     <div class="qrrs-grid">
         <aside class="qrrs-sidebar">
             <ul>
-                <li><a href="?tab=take-order" class="<?php echo $current_tab == 'take-order' ? 'active' : ''; ?>"><i class="fa-solid fa-utensils"></i> Take an Order</a></li>
-                <li><a href="?tab=orders" class="<?php echo $current_tab == 'orders' ? 'active' : ''; ?>"><i class="fa-solid fa-receipt"></i> Order Management</a></li>
-                <li><a href="?tab=tables" class="<?php echo $current_tab == 'tables' ? 'active' : ''; ?>"><i class="fa-solid fa-chair"></i> Table Management</a></li>
-                <?php if ( qrrs_inventory_can_manage() && qrrs_room_service_enabled( qrrs_inventory_get_active_restaurant_id() ) ) : ?><li><a href="?tab=rooms" class="<?php echo $current_tab == 'rooms' ? 'active' : ''; ?>"><i class="fa-solid fa-bed"></i> Rooms</a></li><?php endif; ?>
-                <li><a href="?tab=billing" class="<?php echo $current_tab == 'billing' ? 'active' : ''; ?>"><i class="fa-solid fa-cash-register"></i> Billing & POS</a></li>
-                <li><a href="?tab=reports" class="<?php echo $current_tab == 'reports' ? 'active' : ''; ?>"><i class="fa-solid fa-chart-line"></i> Reports</a></li>
-                <?php if ( qrrs_inventory_can_manage() ) : ?><li><a href="?tab=accounts" class="<?php echo $current_tab == 'accounts' ? 'active' : ''; ?>"><i class="fa-solid fa-briefcase"></i> Accounts &amp; HR</a></li><?php endif; ?>
-                <li><a href="?tab=categories" class="<?php echo $current_tab == 'categories' ? 'active' : ''; ?>"><i class="fa-solid fa-folder-tree"></i> Categories</a></li>
-                <li><a href="?tab=items" class="<?php echo $current_tab == 'items' ? 'active' : ''; ?>"><i class="fa-solid fa-bowl-food"></i> Items</a></li>
-                <li><a href="?tab=inventory" class="<?php echo $current_tab == 'inventory' ? 'active' : ''; ?>"><i class="fa-solid fa-boxes-stacked"></i> Inventory</a></li>
-                <?php if ( qrrs_inventory_can_manage() ) : ?><li><a href="?tab=crm" class="<?php echo $current_tab == 'crm' ? 'active' : ''; ?>"><i class="fa-solid fa-address-book"></i> CRM</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'take-order' ) ) : ?>                <li><a href="?tab=take-order" class="<?php echo $current_tab == 'take-order' ? 'active' : ''; ?>"><i class="fa-solid fa-utensils"></i> Take an Order</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'orders' ) ) : ?>                <li><a href="?tab=orders" class="<?php echo $current_tab == 'orders' ? 'active' : ''; ?>"><i class="fa-solid fa-receipt"></i> Order Management</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'tables' ) ) : ?>                <li><a href="?tab=tables" class="<?php echo $current_tab == 'tables' ? 'active' : ''; ?>"><i class="fa-solid fa-chair"></i> Table Management</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'rooms' ) ) : ?>                <?php if ( qrrs_inventory_can_manage() && qrrs_room_service_enabled( qrrs_inventory_get_active_restaurant_id() ) ) : ?><li><a href="?tab=rooms" class="<?php echo $current_tab == 'rooms' ? 'active' : ''; ?>"><i class="fa-solid fa-bed"></i> Rooms</a></li><?php endif; ?><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'billing' ) ) : ?>                <li><a href="?tab=billing" class="<?php echo $current_tab == 'billing' ? 'active' : ''; ?>"><i class="fa-solid fa-cash-register"></i> Billing & POS</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'reports' ) ) : ?>                <li><a href="?tab=reports" class="<?php echo $current_tab == 'reports' ? 'active' : ''; ?>"><i class="fa-solid fa-chart-line"></i> Reports</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'accounts' ) ) : ?>                <?php if ( qrrs_inventory_can_manage() ) : ?><li><a href="?tab=accounts" class="<?php echo $current_tab == 'accounts' ? 'active' : ''; ?>"><i class="fa-solid fa-briefcase"></i> Accounts &amp; HR</a></li><?php endif; ?><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'categories' ) ) : ?>                <li><a href="?tab=categories" class="<?php echo $current_tab == 'categories' ? 'active' : ''; ?>"><i class="fa-solid fa-folder-tree"></i> Categories</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'items' ) ) : ?>                <li><a href="?tab=items" class="<?php echo $current_tab == 'items' ? 'active' : ''; ?>"><i class="fa-solid fa-bowl-food"></i> Items</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'inventory' ) ) : ?>                <li><a href="?tab=inventory" class="<?php echo $current_tab == 'inventory' ? 'active' : ''; ?>"><i class="fa-solid fa-boxes-stacked"></i> Inventory</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'crm' ) ) : ?>                <?php if ( qrrs_inventory_can_manage() ) : ?><li><a href="?tab=crm" class="<?php echo $current_tab == 'crm' ? 'active' : ''; ?>"><i class="fa-solid fa-address-book"></i> CRM</a></li><?php endif; ?><?php endif; ?>
                 
-                <?php if ( current_user_can( 'administrator' ) ) : ?>
+                <?php if ( qrrs_is_full_admin() ) : ?>
                 <li class="admin-menu-item-separator" style="list-style:none; display:flex; align-items:center; gap:10px; padding:16px 14px 8px;">
                     <span style="flex:1; border-top:1px dashed #cbd5e1;"></span>
                     <span style="background:#fef2f2; color:#b91c1c; padding:3px 10px; border-radius:20px; font-size:10px; font-weight:800; letter-spacing:.12em; white-space:nowrap;">ADMINISTRATION</span>
                     <span style="flex:1; border-top:1px dashed #cbd5e1;"></span>
                 </li>
                 <?php endif; ?>
-                <?php if ( current_user_can( 'administrator' ) ) : ?>
-                    <li class="admin-menu-item"><a href="?tab=settings" class="<?php echo ! empty( $is_settings ) ? 'active' : ''; ?>"><i class="fa-solid fa-gear"></i> Settings</a></li>
-                    <li class="admin-menu-item"><a href="?tab=audit" class="<?php echo $current_tab == 'audit' ? 'active' : ''; ?>"><i class="fa-solid fa-clipboard-list"></i> Advanced Change Tracker</a></li>
-                    <li class="admin-menu-item"><a href="?tab=backup" class="<?php echo $current_tab == 'backup' ? 'active' : ''; ?>"><i class="fa-solid fa-shield-halved"></i> Backup</a></li>
+                <?php if ( qrrs_is_full_admin() ) : ?>
+<?php if ( qrrs_menu_allowed( 'audit' ) ) : ?>                    <li class="admin-menu-item"><a href="?tab=audit" class="<?php echo $current_tab == 'audit' ? 'active' : ''; ?>"><i class="fa-solid fa-clipboard-list"></i> Audit log</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'backup' ) ) : ?>                    <li class="admin-menu-item"><a href="?tab=backup" class="<?php echo $current_tab == 'backup' ? 'active' : ''; ?>"><i class="fa-solid fa-shield-halved"></i> Backup</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'settings' ) ) : ?>                    <li class="admin-menu-item"><a href="?tab=settings" class="<?php echo ! empty( $is_settings ) ? 'active' : ''; ?>"><i class="fa-solid fa-gear"></i> Settings</a></li><?php endif; ?>
                 <?php endif; ?>
             </ul>
         </aside>
 
         <main class="qrrs-main-content">
             <?php 
-           if ( current_user_can('administrator') && !$active_res_id && !in_array($current_tab, ['restaurants', 'license', 'profile']) ) {
+           if ( qrrs_is_full_admin() && !$active_res_id && !in_array($current_tab, ['restaurants', 'license', 'profile']) ) {
    
            $default_img_url = plugins_url('assets/images/restaurant.png', dirname(dirname(__FILE__)));
 
@@ -244,16 +245,23 @@ if ( 'settings' === $current_tab && current_user_can( 'administrator' ) ) {
                     echo '</div>';
                 }
 
+                if ( function_exists( 'qrrs_tab_allowed' ) && ! qrrs_tab_allowed( $current_tab ) ) { $current_tab = 'denied'; }
                 switch ($current_tab) {
                     case 'offers':
                         if ( function_exists( 'qrrs_offers_render' ) ) { qrrs_offers_render( qrrs_inventory_get_active_restaurant_id() ); }
+                        break;
+                    case 'roles':
+                        if ( function_exists( 'qrrs_roles_render' ) ) { qrrs_roles_render( qrrs_inventory_get_active_restaurant_id() ); }
+                        break;
+                    case 'denied':
+                        echo "<div style='padding:40px; text-align:center;'><h3>You do not have access to this section.</h3><p>Ask the restaurant admin to give your role access.</p></div>";
                         break;
                     case 'restaurants':
                         QRRS_Auth::is_admin_only();
                         include QRRS_PATH . 'includes/restaurant/restaurant-create.php';
                         break;
                     case 'add-staff':
-                        QRRS_Auth::is_admin_only();
+                        if ( ! qrrs_is_full_admin() && ! qrrs_menu_allowed( 'settings' ) ) { QRRS_Auth::is_admin_only(); }
                         include QRRS_PATH . 'includes/restaurant/add-staff.php';
                         break;
                     case 'audit':
@@ -308,15 +316,15 @@ if ( 'settings' === $current_tab && current_user_can( 'administrator' ) ) {
                         }
                         break;
                     case 'online-settings':
-                        QRRS_Auth::is_admin_only();
+                        if ( ! qrrs_is_full_admin() && ! qrrs_menu_allowed( 'settings' ) ) { QRRS_Auth::is_admin_only(); }
                         require_once QRRS_PATH . 'includes/restaurant/online-settings.php';
-                        qrrs_online_render( qrrs_inventory_get_active_restaurant_id(), current_user_can( 'administrator' ) );
+                        qrrs_online_render( qrrs_inventory_get_active_restaurant_id(), qrrs_is_full_admin() );
                         break;
                     case 'crm':
                         qrrs_crm_render( qrrs_inventory_get_active_restaurant_id(), qrrs_inventory_is_admin(), qrrs_inventory_can_manage() );
                         break;
                     case 'license':
-                        QRRS_Auth::is_admin_only();
+                        if ( ! qrrs_is_full_admin() && ! qrrs_menu_allowed( 'settings' ) ) { QRRS_Auth::is_admin_only(); }
                         qrrs_render_license_page();
                         break;
                     default:

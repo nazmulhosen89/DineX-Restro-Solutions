@@ -62,6 +62,128 @@ require_once QRRS_PATH . 'includes/accounts/customer-due.php';
 require_once QRRS_PATH . 'includes/reports/export.php';
 require_once QRRS_PATH . 'includes/realtime/live.php';
 require_once QRRS_PATH . 'includes/printer/printer.php';
+require_once QRRS_PATH . 'includes/billing/receipt.php';
+require_once QRRS_PATH . 'includes/hr/attendance.php';
+require_once QRRS_PATH . 'includes/restaurant/roles.php';
+require_once QRRS_PATH . 'includes/hr/leave-types.php';
+require_once QRRS_PATH . 'includes/hr/leaves.php';
+
+/**
+ * Roles used by the restaurant system. A restaurant admin manages one restaurant from the
+ * restaurant dashboard only; it has no access to wp-admin.
+ */
+add_action( 'init', function () {
+    if ( ! get_role( 'qr_cashier' ) ) add_role( 'qr_cashier', 'Cashier', [ 'read' => true ] );
+    if ( ! get_role( 'qr_restaurant_admin' ) ) add_role( 'qr_restaurant_admin', 'Restaurant Admin', [ 'read' => true ] );
+}, 5 );
+
+/** The role name shown under the user's name, in plain words. */
+function qrrs_role_label( $user ) {
+    $map = [
+        'administrator'        => 'Administrator',
+        'qr_restaurant_admin'  => 'Restaurant Admin',
+        'qr_manager'           => 'Manager',
+        'qr_waiter'            => 'Waiter',
+        'qr_kitchen'           => 'Kitchen',
+        'qr_cashier'           => 'Cashier',
+    ];
+    foreach ( (array) $user->roles as $r ) {
+        if ( isset( $map[ $r ] ) ) return $map[ $r ];
+    }
+    return ! empty( $user->roles ) ? ucwords( str_replace( [ 'qr_', '_' ], [ '', ' ' ], $user->roles[0] ) ) : '';
+}
+
+/** Full access inside the restaurant system: the WordPress admin, or a restaurant admin. */
+function qrrs_is_full_admin() {
+    return current_user_can( 'administrator' ) || current_user_can( 'qr_restaurant_admin' );
+}
+
+/** Restaurant system users (not WordPress admins) do not get wp-admin or its admin bar. */
+function qrrs_is_system_user_only( $user = null ) {
+    $user = $user ?: wp_get_current_user();
+    if ( ! $user || ! $user->ID ) return false;
+    if ( in_array( 'administrator', (array) $user->roles, true ) ) return false;
+    return ! empty( array_intersect( [ 'qr_manager', 'qr_waiter', 'qr_kitchen', 'qr_cashier', 'qr_restaurant_admin' ], (array) $user->roles ) );
+}
+
+add_action( 'admin_init', function () {
+    if ( wp_doing_ajax() || wp_doing_cron() ) return;
+    if ( qrrs_is_system_user_only() ) {
+        wp_safe_redirect( home_url( '/restaurant-dashboard/' ) );
+        exit;
+    }
+} );
+
+add_filter( 'show_admin_bar', function ( $show ) {
+    return qrrs_is_system_user_only() ? false : $show;
+} );
+
+/**
+ * Staff access: an inactive staff member cannot sign in, and is signed out if the status
+ * changes while they are logged in. Admins are not affected.
+ */
+/**
+ * Why a staff member cannot use the system right now: 'inactive', 'leave', or '' (allowed).
+ * Admins are never blocked here.
+ */
+function qrrs_staff_block_reason( $user ) {
+    if ( ! $user || ! ( $user instanceof WP_User ) ) return '';
+    if ( in_array( 'administrator', (array) $user->roles, true ) ) return '';
+    global $wpdb;
+    $staff_rows = (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}qrrs_staff WHERE user_id = %d", $user->ID ) );
+    $staff_roles = [ 'qr_manager', 'qr_waiter', 'qr_kitchen', 'qr_cashier' ];
+    $has_role = ! empty( array_intersect( $staff_roles, (array) $user->roles ) );
+
+    // not a member of this system at all
+    if ( ! $staff_rows && ! $has_role ) return 'unauthorized';
+    // a staff member who is not linked to any restaurant
+    if ( $staff_rows ) {
+        $linked = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}qrrs_staff WHERE user_id = %d AND restaurant_id > 0", $user->ID ) );
+        if ( ! $linked ) return 'no_restaurant';
+    }
+    if ( 'inactive' === (string) get_user_meta( $user->ID, 'staff_status', true ) ) return 'inactive';
+
+    $today = current_time( 'Y-m-d' );
+    $on_leave = (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}qrrs_leaves l
+         JOIN {$wpdb->prefix}qrrs_staff s ON s.id = l.staff_id
+         WHERE s.user_id = %d AND l.start_date <= %s AND l.end_date >= %s",
+        $user->ID, $today, $today
+    ) );
+    return $on_leave > 0 ? 'leave' : '';
+}
+
+// Only an inactive or on-leave staff member is signed out while logged in
+function qrrs_is_inactive_staff( $user ) {
+    return in_array( qrrs_staff_block_reason( $user ), [ 'inactive', 'leave' ], true );
+}
+
+add_filter( 'authenticate', function ( $user ) {
+    if ( ! ( $user instanceof WP_User ) ) return $user;
+    $reason = qrrs_staff_block_reason( $user );
+    if ( '' === $reason ) return $user;
+
+    $messages = [
+        'leave'         => 'You are on leave today. Access is off until your leave ends.',
+        'inactive'      => 'Your account is inactive. Please ask the manager.',
+        'unauthorized'  => 'You are not authorized to use this system. Please ask the admin for access.',
+        'no_restaurant' => 'Your account is not assigned to any restaurant. Please ask the admin.',
+    ];
+    $msg = $messages[ $reason ] ?? 'Access is not allowed for this account.';
+    // the login page shows this message once, for this visitor
+    set_transient( 'qrrs_lm_' . md5( $_SERVER['REMOTE_ADDR'] ?? '' ), $msg, 60 );
+    return new WP_Error( 'qrrs_blocked', $msg );
+}, 30 );
+
+add_action( 'init', function () {
+    if ( is_user_logged_in() && qrrs_is_inactive_staff( wp_get_current_user() ) ) {
+        wp_logout();
+        wp_safe_redirect( home_url( '/restaurant-login/?inactive=1' ) );
+        exit;
+    }
+} );
 require_once QRRS_PATH . 'includes/inventory/alerts.php';
 require_once QRRS_PATH . 'includes/offers/offers.php';
 require_once QRRS_PATH . 'includes/kitchen/kot.php';

@@ -60,7 +60,7 @@ function qrrs_billing_user_can_take_payment() {
 }
 
 add_action( 'admin_post_qrrs_add_payment', function () {
-    if ( ! is_user_logged_in() || ! qrrs_billing_user_can_take_payment() ) wp_die( 'Not allowed to take payments.' );
+    if ( ! is_user_logged_in() || ! qrrs_billing_user_can_take_payment() || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'billing.settle' ) ) ) wp_die( 'Not allowed to take payments.' );
     global $wpdb;
     $id = intval( $_POST['order_id'] ?? 0 );
     check_admin_referer( 'qrrs_add_payment_' . $id );

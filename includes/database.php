@@ -47,6 +47,11 @@ class QRRS_Database {
             staff_role varchar(50) NOT NULL,
             assigned_by bigint(20) NOT NULL,
             status varchar(20) DEFAULT 'active',
+            full_name varchar(150) NOT NULL DEFAULT '',
+            phone varchar(30) NOT NULL DEFAULT '',
+            address text,
+            salary_type varchar(12) NOT NULL DEFAULT 'monthly',
+            salary_amount decimal(12,2) NOT NULL DEFAULT 0.00,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY user_id (user_id),
@@ -759,6 +764,38 @@ class QRRS_Database {
         dbDelta( $sql_dues );
         dbDelta( $sql_due_payments );
         dbDelta( $sql_offers );
+
+        $sql_leaves = "CREATE TABLE {$prefix}leaves (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            restaurant_id bigint(20) NOT NULL,
+            staff_id bigint(20) NOT NULL,
+            leave_type_id varchar(16) NOT NULL DEFAULT '',
+            start_date date NOT NULL,
+            end_date date NOT NULL,
+            days int(11) NOT NULL DEFAULT 1,
+            note varchar(255) DEFAULT '',
+            created_by bigint(20) NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY restaurant_leaves (restaurant_id, staff_id)
+        ) $charset_collate;";
+        dbDelta( $sql_leaves );
+
+        $sql_salary = "CREATE TABLE {$prefix}salary_payments (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            restaurant_id bigint(20) NOT NULL,
+            staff_id bigint(20) NOT NULL,
+            period_start date NOT NULL,
+            period_end date NOT NULL,
+            gross decimal(12,2) NOT NULL DEFAULT 0.00,
+            deduction decimal(12,2) NOT NULL DEFAULT 0.00,
+            net decimal(12,2) NOT NULL DEFAULT 0.00,
+            paid_by bigint(20) NOT NULL DEFAULT 0,
+            paid_at datetime DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY restaurant_salary (restaurant_id, staff_id)
+        ) $charset_collate;";
+        dbDelta( $sql_salary );
         dbDelta( $sql_rooms );
         dbDelta( $sql_stock_movements );
         dbDelta( $sql_requisitions );

@@ -1,6 +1,6 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
-QRRS_Auth::is_admin_only();
+if ( ! qrrs_is_full_admin() && ! qrrs_menu_allowed( 'settings' ) ) { QRRS_Auth::is_admin_only(); }
 
 global $wpdb;
 
@@ -45,7 +45,8 @@ if ( isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id']) )
 if ( isset($_POST['save_staff']) ) {
     $sid = $edit_mode ? intval($_GET['id']) : 0;
     $restaurant_id = intval( $_POST['restaurant_id'] );
-    $staff_role = sanitize_text_field( $_POST['staff_role'] );
+    $role_key   = sanitize_text_field( $_POST['staff_role'] );
+    $staff_role = function_exists( 'qrrs_role_base' ) ? qrrs_role_base( $restaurant_id, $role_key ) : $role_key;
     $status = sanitize_text_field( $_POST['staff_status'] );
     $staff_name = sanitize_text_field($_POST['staff_name']);
 
@@ -65,6 +66,8 @@ if ( isset($_POST['save_staff']) ) {
         update_user_meta( $sid, 'staff_nid_back', esc_url_raw( $_POST['nid_back'] ) );
         update_user_meta( $sid, 'assigned_restaurant', $restaurant_id );
         update_user_meta( $sid, 'staff_status', $status );
+        update_user_meta( $sid, 'qrrs_role_key', $role_key );
+        $wpdb->update( $staff_table, [ 'full_name' => $staff_name, 'phone' => sanitize_text_field( $_POST['phone'] ?? '' ), 'address' => sanitize_textarea_field( wp_unslash( $_POST['address'] ?? '' ) ) ], [ 'user_id' => $sid ], [ '%s', '%s', '%s' ], [ '%d' ] );
 
         $user = new WP_User( $sid );
         $user->set_role( $staff_role );
@@ -91,6 +94,27 @@ if ( isset($_POST['save_staff']) ) {
         echo "<script>setTimeout(function(){ window.location.href='?tab=add-staff'; }, 2000);</script>";
     } else {
         // --- CREATE ---
+        $has_login = ! empty( $_POST['has_login'] );
+        $sal_type  = in_array( $_POST['salary_type'] ?? '', [ 'daily', 'weekly', 'half_month', 'monthly' ], true ) ? $_POST['salary_type'] : 'monthly';
+        $sal_amt   = max( 0, (float) ( $_POST['salary_amount'] ?? 0 ) );
+        $phone     = sanitize_text_field( $_POST['phone'] ?? '' );
+        $address   = sanitize_textarea_field( wp_unslash( $_POST['address'] ?? '' ) );
+
+        if ( ! $has_login ) {
+            // staff without login: a staff record only, no WordPress user
+            if ( function_exists( 'qrrs_free_limit_reached' ) && qrrs_free_limit_reached( $staff_role, $restaurant_id ) ) {
+                echo "<div class='qrrs-toast error'>Free version allows only 1 " . esc_html( str_replace( 'qr_', '', $staff_role ) ) . " user per restaurant.</div>";
+            } else {
+                $wpdb->insert( $staff_table, [
+                    'user_id' => 0, 'restaurant_id' => $restaurant_id, 'staff_role' => $staff_role,
+                    'assigned_by' => get_current_user_id(), 'status' => $status, 'full_name' => $staff_name,
+                    'phone' => $phone, 'salary_type' => $sal_type, 'salary_amount' => $sal_amt, 'address' => $address,
+                ], [ '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%f', '%s' ] );
+                if ( function_exists( 'qrrs_audit' ) ) { qrrs_audit( 'staff_added', 'staff', (int) $wpdb->insert_id, [ 'role' => $staff_role, 'login' => 0 ], $restaurant_id ); }
+                echo "<div class='qrrs-toast success'>Staff added (no login).</div>";
+                echo "<script>setTimeout(function(){ window.location.href='?tab=add-staff'; }, 2000);</script>";
+            }
+        } else {
         $username = sanitize_user($_POST['staff_user']);
         $password = $_POST['staff_pass'];
 
@@ -104,6 +128,7 @@ if ( isset($_POST['save_staff']) ) {
             if ( !is_wp_error($new_user_id) ) {
                 wp_update_user(['ID' => $new_user_id, 'display_name' => $staff_name]);
                 
+                update_user_meta( $new_user_id, 'qrrs_role_key', $role_key );
                 update_user_meta( $new_user_id, 'staff_photo', esc_url_raw( $_POST['staff_photo'] ) );
                 update_user_meta( $new_user_id, 'staff_nid_front', esc_url_raw( $_POST['nid_front'] ) );
                 update_user_meta( $new_user_id, 'staff_nid_back', esc_url_raw( $_POST['nid_back'] ) );
@@ -123,6 +148,7 @@ if ( isset($_POST['save_staff']) ) {
                 ], ['%d', '%d', '%s', '%d', '%s']);
 
                 if($db_inserted !== false) {
+                    $wpdb->update( $staff_table, [ 'full_name' => $staff_name, 'phone' => $phone, 'salary_type' => $sal_type, 'salary_amount' => $sal_amt, 'address' => $address ], [ 'user_id' => $new_user_id ], [ '%s', '%s', '%s', '%f', '%s' ], [ '%d' ] );
                     echo "<div class='qrrs-toast success'>Staff created successfully!</div>";
                     echo "<script>setTimeout(function(){ window.location.href='?tab=add-staff'; }, 2000);</script>";
                 } else {
@@ -131,6 +157,7 @@ if ( isset($_POST['save_staff']) ) {
             } else {
                 echo "<div class='qrrs-toast error'>Error: " . $new_user_id->get_error_message() . "</div>";
             }
+        }
         }
     }
 }
@@ -146,49 +173,134 @@ $active_res_name = $wpdb->get_var($wpdb->prepare("SELECT restaurant_name FROM $r
             </h3>
         </div>
         
-        <form method="POST" class="qrrs-form">
+        <?php if ( function_exists( 'qrrs_staff_list_html' ) && ! $edit_mode ) { qrrs_staff_list_html( $active_res_id, 'page' ); } ?>
+        <style>
+        .qs-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px;margin-bottom:14px;}
+        .qs-title{font-size:15px;font-weight:800;color:#0f172a;margin:0 0 12px;}
+        .qs-chips{display:flex;flex-wrap:wrap;gap:8px;}
+        .qs-chip{cursor:pointer;border:1.5px solid #cbd5e1;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700;color:#334155;background:#fff;}
+        .qs-chip input{display:none;}
+        .qs-chip.on{background:#0f172a;border-color:#0f172a;color:#fff;}
+        .qs-hint{font-size:12px;color:#64748b;margin-top:6px;}
+        .qs-login{display:none;margin-top:12px;padding:14px;border:1px dashed #94a3b8;border-radius:12px;background:#f8fafc;}
+        .qs-login.show{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;}
+        .qs-login-toggle{display:flex;align-items:center;gap:10px;font-weight:800;color:#0f172a;cursor:pointer;}
+        </style>
+        <form method="POST" class="qrrs-form" id="sf-form">
             <input type="hidden" name="restaurant_id" value="<?php echo $active_res_id; ?>">
+            <?php
+                global $wpdb;
+                $__srow = ( $edit_mode && ! empty( $staff_data->ID ) ) ? $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}qrrs_staff WHERE user_id = %d", $staff_data->ID ) ) : null;
+            ?>
+            <style>
+            .sf-wrap{display:grid;gap:14px;}
+            .sf-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px;box-shadow:0 1px 3px rgba(15,23,42,.05);}
+            .sf-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+            .sf-num{width:28px;height:28px;border-radius:50%;background:#0f172a;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;}
+            .sf-title{font-size:15px;font-weight:800;color:#0f172a;}
+            .sf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+            .sf-field label{display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:5px;}
+            .sf-field input,.sf-field select,.sf-field textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px;background:#fff;transition:border .15s, box-shadow .15s;}
+            .sf-field input:focus,.sf-field select:focus,.sf-field textarea:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15);}
+            .sf-field input[readonly]{background:#f8fafc;color:#64748b;}
+            .sf-chips{display:flex;flex-wrap:wrap;gap:8px;}
+            .sf-chip{cursor:pointer;border:1.5px solid #cbd5e1;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;color:#334155;background:#fff;user-select:none;}
+            .sf-chip input{display:none;}
+            .sf-chip.on{background:#0f172a;border-color:#0f172a;color:#fff;}
+            .sf-hint{font-size:12px;color:#64748b;margin-top:8px;}
+            .sf-toggle{display:flex;align-items:center;gap:12px;cursor:pointer;padding:12px 14px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;font-weight:700;color:#0f172a;}
+            .sf-toggle input{width:18px;height:18px;}
+            .sf-login{display:none;margin-top:12px;}
+            .sf-login.show{display:grid;}
+            .sf-err{color:#dc2626;font-size:12px;font-weight:700;margin-top:6px;min-height:16px;}
+            .sf-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:6px;}
+            .sf-btn{padding:12px 22px;border:none;border-radius:12px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 4px 10px rgba(22,163,74,.3);}
+            .sf-btn:hover{filter:brightness(1.05);}
+            .sf-cancel{color:#64748b;font-weight:700;text-decoration:none;}
+            </style>
 
-            <div class="form-row" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px; margin-bottom:15px;">
-                <div class="form-col">
-                    <label>Full Name</label>
-                    <input type="text" name="staff_name" required value="<?php echo $edit_mode ? esc_attr($staff_data->display_name) : ''; ?>">
-                </div>
-                <div class="form-col">
-                    <label>Username</label>
-                    <input type="text" name="staff_user" required <?php echo $edit_mode ? 'readonly' : ''; ?> value="<?php echo $edit_mode ? esc_attr($staff_data->user_login) : ''; ?>">
-                </div>
-                <div class="form-col">
-                    <label>Password <?php echo $edit_mode ? '(Blank to keep same)' : ''; ?></label>
-                    <input type="password" name="staff_pass" <?php echo $edit_mode ? '' : 'required'; ?>>
-                </div>
-            </div>
+            <div class="sf-wrap">
 
-            <div class="form-row" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px; margin-bottom:15px;">
-                <div class="form-col">
-                    <label>Role</label>
-                    <?php $current_role = $edit_mode ? $staff_data->roles[0] : ''; ?>
-                    <select name="staff_role">
-                        <option value="qr_manager" <?php selected($current_role, 'qr_manager'); ?>>Manager</option>
-                        <option value="qr_waiter" <?php selected($current_role, 'qr_waiter'); ?>>Waiter</option>
-                        <option value="qr_kitchen" <?php selected($current_role, 'qr_kitchen'); ?>>Kitchen Staff</option>
-                    </select>
+                <!-- 1. Personal -->
+                <div class="sf-card">
+                    <div class="sf-head"><span class="sf-num">1</span><span class="sf-title">Personal details</span></div>
+                    <div class="sf-grid">
+                        <div class="sf-field"><label>Full name *</label>
+                            <input type="text" name="staff_name" required value="<?php echo $edit_mode ? esc_attr( $staff_data->display_name ) : ''; ?>" placeholder="e.g. Iqbal Mahmud"></div>
+                        <div class="sf-field"><label>Phone</label>
+                            <input type="text" name="phone" maxlength="30" placeholder="01XXXXXXXXX" value="<?php echo $__srow ? esc_attr( $__srow->phone ) : ''; ?>"></div>
+                        <div class="sf-field" style="grid-column:1/-1;"><label>Address</label>
+                            <textarea name="address" rows="2" maxlength="500" placeholder="Village / road, area, district"><?php echo $__srow ? esc_textarea( $__srow->address ) : ''; ?></textarea></div>
+                    </div>
                 </div>
-                <div class="form-col">
-                    <label>Status</label>
-                    <?php $status = $edit_mode ? get_user_meta($staff_data->ID, 'staff_status', true) : 'active'; ?>
-                    <select name="staff_status">
-                        <option value="active" <?php selected($status, 'active'); ?>>Active</option>
-                        <option value="inactive" <?php selected($status, 'inactive'); ?>>Inactive</option>
-                    </select>
-                </div>
-                <div class="form-col">
-                    <label>Restaurant</label>
-                    <input type="text" value="<?php echo esc_html($active_res_name); ?>" disabled style="background:#f9f9f9;">
-                </div>
-            </div>
 
-            <div class="form-row" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; margin-bottom:20px; align-items:center;">
+                <!-- 2. Role & status -->
+                <div class="sf-card">
+                    <div class="sf-head"><span class="sf-num">2</span><span class="sf-title">Role &amp; status</span></div>
+                    <?php $current_role = $edit_mode ? ( get_user_meta( $staff_data->ID, 'qrrs_role_key', true ) ?: $staff_data->roles[0] ) : ''; ?>
+                    <?php $status = $edit_mode ? get_user_meta( $staff_data->ID, 'staff_status', true ) : 'active'; ?>
+                    <div class="sf-grid">
+                        <div class="sf-field"><label>Role *</label>
+                            <select name="staff_role">
+                                <?php foreach ( qrrs_roles_get( $active_res_id ) as $__r ) : if ( empty( $__r['active'] ) && $__r['key'] !== $current_role ) continue; ?>
+                                    <option value="<?php echo esc_attr( $__r['key'] ); ?>" <?php selected( $current_role, $__r['key'] ); ?>><?php echo esc_html( $__r['name'] ); ?><?php echo empty( $__r['active'] ) ? ' (inactive)' : ''; ?></option>
+                                <?php endforeach; ?>
+                                <?php if ( current_user_can( 'administrator' ) ) : ?>
+                                <option value="qr_restaurant_admin" <?php selected( $current_role, 'qr_restaurant_admin' ); ?>>Restaurant admin</option>
+                                <?php endif; ?>
+                            </select></div>
+                        <div class="sf-field"><label>Status *</label>
+                            <select name="staff_status">
+                                <option value="active" <?php selected( $status, 'active' ); ?>>Active</option>
+                                <option value="inactive" <?php selected( $status, 'inactive' ); ?>>Inactive</option>
+                            </select></div>
+                        <div class="sf-field"><label>Restaurant</label>
+                            <input type="text" value="<?php echo esc_attr( $active_res_name ); ?>" disabled></div>
+                    </div>
+                </div>
+
+                <?php if ( ! $edit_mode ) : ?>
+                <!-- 3. Pay -->
+                <div class="sf-card">
+                    <div class="sf-head"><span class="sf-num">3</span><span class="sf-title">Pay</span></div>
+                    <div class="sf-chips" id="sf-pay">
+                        <label class="sf-chip"><input type="radio" name="salary_type_pick" value="daily"> Daily</label>
+                        <label class="sf-chip"><input type="radio" name="salary_type_pick" value="weekly"> Weekly</label>
+                        <label class="sf-chip"><input type="radio" name="salary_type_pick" value="half_month"> Half month</label>
+                        <label class="sf-chip on"><input type="radio" name="salary_type_pick" value="monthly" checked> Monthly</label>
+                    </div>
+                    <input type="hidden" name="salary_type" id="sf-pay-value" value="monthly">
+                    <div class="sf-grid" style="margin-top:14px;">
+                        <div class="sf-field"><label>Amount (৳) for this pay type</label>
+                            <input type="number" name="salary_amount" id="sf-amt" step="0.01" min="0" value="0"></div>
+                    </div>
+                    <div class="sf-hint" id="sf-preview">Enter the amount to see the per-day value.</div>
+                </div>
+                <?php endif; ?>
+
+                <!-- 4. Login -->
+                <div class="sf-card">
+                    <div class="sf-head"><span class="sf-num"><?php echo $edit_mode ? '3' : '4'; ?></span><span class="sf-title">Login access</span></div>
+                    <?php if ( ! $edit_mode ) : ?>
+                    <label class="sf-toggle"><input type="checkbox" name="has_login" id="sf-has-login" value="1"> Give this person a login (username &amp; password)</label>
+                    <?php endif; ?>
+                    <div class="sf-login <?php echo $edit_mode ? 'show' : ''; ?>" id="sf-login">
+                        <div class="sf-grid">
+                            <div class="sf-field"><label>Username *</label>
+                                <input type="text" name="staff_user" id="sf-user" autocomplete="off" <?php echo $edit_mode ? 'readonly' : ''; ?> value="<?php echo $edit_mode ? esc_attr( $staff_data->user_login ) : ''; ?>"></div>
+                            <div class="sf-field"><label>Password <?php echo $edit_mode ? '(leave blank to keep)' : '*'; ?></label>
+                                <input type="password" name="staff_pass" id="sf-pass" autocomplete="new-password"></div>
+                            <div class="sf-field"><label>Confirm password *</label>
+                                <input type="password" id="sf-pass2" autocomplete="new-password"></div>
+                        </div>
+                        <div class="sf-err" id="sf-err"></div>
+                    </div>
+                </div>
+
+                <!-- 5. Documents -->
+                <div class="sf-card">
+                    <div class="sf-head"><span class="sf-num"><?php echo $edit_mode ? '4' : '5'; ?></span><span class="sf-title">Photo &amp; NID</span></div>
+                    <div class="sf-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">
                 <!-- Staff Photo (Circular Upload) -->
                 <div class="form-col" style="text-align:center;">
                     <label style="display:block; margin-bottom:8px; font-weight:600;">Staff Photo</label>
@@ -233,21 +345,66 @@ $active_res_name = $wpdb->get_var($wpdb->prepare("SELECT restaurant_name FROM $r
                     </div>
                     <input type="hidden" name="nid_back" id="nid_back_url" value="<?php echo $nid_b; ?>">
                 </div>
-            </div>
+                    </div>
+                </div>
 
-            <div class="form-footer">
-                <button type="submit" name="save_staff">
-                    <?php echo $edit_mode ? '<span class="material-icons-outlined">update</span> Update Staff Member' : '<span class="material-icons-outlined">save</span> Save Staff Member'; ?>
-                </button>
-            
-                <?php if($edit_mode): ?>
-                    <a href="?tab=add-staff">Cancel</a>
+                <div class="sf-foot">
+                    <button type="submit" name="save_staff" class="sf-btn" id="sf-submit">
+                        <?php echo $edit_mode ? 'Update staff member' : 'Save staff member'; ?>
+                    </button>
+                    <?php if ( $edit_mode ) : ?><a class="sf-cancel" href="?tab=add-staff">Cancel</a><?php endif; ?>
+                </div>
+                <?php if ( ! $edit_mode && function_exists( 'qrrs_is_pro' ) && ! qrrs_is_pro() ) : ?>
+                    <p style="margin:4px 0 0; color:#92400e; font-size:13px;">Free version allows 1 manager, 1 waiter and 1 kitchen user per restaurant.</p>
                 <?php endif; ?>
             </div>
-            <?php if ( ! $edit_mode && function_exists( 'qrrs_is_pro' ) && ! qrrs_is_pro() ) : ?>
-                <p style="margin:10px 0 0; color:#92400e; font-size:13px;">Free version allows 1 manager, 1 waiter, and 1 kitchen user per restaurant. Extra staff accounts are available in Pro.</p>
-            <?php endif; ?>
+
+            <script>
+            (function () {
+                var form = document.getElementById('sf-form');
+                if (!form) return;
+                var $ = function (id) { return document.getElementById(id); };
+                var cb = $('sf-has-login'), login = $('sf-login');
+                var user = $('sf-user'), pass = $('sf-pass'), pass2 = $('sf-pass2'), err = $('sf-err');
+                var amt = $('sf-amt'), pv = $('sf-preview'), val = $('sf-pay-value');
+                var editMode = <?php echo $edit_mode ? 'true' : 'false'; ?>;
+
+                function setLogin() {
+                    var on = editMode || (cb && cb.checked);
+                    if (login) login.classList.toggle('show', on);
+                    if (user) user.required = on && !editMode ? true : (editMode ? false : on);
+                    if (!editMode && pass) { pass.required = on; pass2 && (pass2.required = on); }
+                    if (!on) { if (user) user.value = ''; if (pass) pass.value = ''; if (pass2) pass2.value = ''; err.textContent = ''; }
+                }
+                function pay() {
+                    var pick = document.querySelector('input[name="salary_type_pick"]:checked');
+                    if (!pick) return;
+                    var t = pick.value, a = parseFloat(amt ? amt.value : 0) || 0;
+                    if (val) val.value = t;
+                    document.querySelectorAll('#sf-pay .sf-chip').forEach(function (c) { c.classList.toggle('on', c.querySelector('input').checked); });
+                    var per = t === 'daily' ? a : (t === 'weekly' ? a / 7 : (t === 'half_month' ? a / 15 : a / 30));
+                    if (pv) pv.textContent = a > 0 ? 'About ৳' + per.toFixed(2) + ' per day (used for leave deduction).' : 'Enter the amount to see the per-day value.';
+                }
+                function check(e) {
+                    err.textContent = '';
+                    var on = editMode || (cb && cb.checked);
+                    if (!on) return true;
+                    if (!editMode && user && user.value.trim().length < 3) { err.textContent = 'Username must be at least 3 characters.'; user.focus(); e.preventDefault(); return false; }
+                    if (pass && pass.value.length > 0 && pass.value.length < 6) { err.textContent = 'Password must be at least 6 characters.'; pass.focus(); e.preventDefault(); return false; }
+                    if (!editMode && pass && pass.value.length < 6) { err.textContent = 'Password must be at least 6 characters.'; pass.focus(); e.preventDefault(); return false; }
+                    if (pass && pass2 && pass.value !== pass2.value) { err.textContent = 'The two passwords do not match.'; pass2.focus(); e.preventDefault(); return false; }
+                    return true;
+                }
+                if (cb) cb.addEventListener('change', setLogin);
+                if (amt) amt.addEventListener('input', pay);
+                document.querySelectorAll('input[name="salary_type_pick"]').forEach(function (r) { r.addEventListener('change', pay); });
+                form.addEventListener('submit', check);
+                setLogin(); pay();
+            })();
+            </script>
         </form>
+
+            
     </div>
 
     <hr style="margin:20px 0; border:0; border-top:1px solid #eee;">
@@ -292,7 +449,6 @@ $active_res_name = $wpdb->get_var($wpdb->prepare("SELECT restaurant_name FROM $r
         </table>
     </div>
 </div>
-
 
 <script>
 jQuery(document).ready(function($){

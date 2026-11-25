@@ -25,10 +25,12 @@ if (!$active_res_id) {
 
 if ( function_exists( 'qrrs_sync_payment_lines' ) && ! empty( $active_res_id ) ) { qrrs_sync_payment_lines( intval( $active_res_id ) ); }
 
-if ( isset($_POST['complete_order_id']) ) {
+if ( isset($_POST['complete_order_id']) && ( ! function_exists( 'qrrs_can' ) || qrrs_can( 'billing.settle' ) ) ) {
     $order_to_complete  = intval($_POST['complete_order_id']);
+    $GLOBALS['qrrs_auto_bill_id'] = $order_to_complete;
     $discount_type      = sanitize_text_field($_POST['discount_type'] ?? 'none');
     $discount_value     = floatval($_POST['discount_value'] ?? 0);
+    if ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'billing.discount' ) ) { $discount_type = 'none'; $discount_value = 0; }
     $payment_method     = sanitize_text_field($_POST['payment_method'] ?? 'cash');
     $amount_received    = floatval($_POST['amount_received'] ?? 0);
     if ( function_exists( 'qrrs_payments_sum' ) && qrrs_payments_sum( $order_to_complete ) > 0 ) {
@@ -44,7 +46,7 @@ if ( isset($_POST['complete_order_id']) ) {
     ));
 
     // Credit (বাকিতে): the unpaid part of the bill goes to Customer due
-    $credit_on    = ( isset( $_POST['credit_flag'] ) && '1' === $_POST['credit_flag'] );
+    $credit_on    = ( isset( $_POST['credit_flag'] ) && '1' === $_POST['credit_flag'] && ( ! function_exists( 'qrrs_can' ) || qrrs_can( 'billing.credit' ) ) );
     $credit_name  = sanitize_text_field( wp_unslash( $_POST['credit_name'] ?? '' ) );
     $credit_phone = function_exists( 'qrrs_normalize_phone' ) ? qrrs_normalize_phone( sanitize_text_field( wp_unslash( $_POST['credit_phone'] ?? '' ) ) ) : '';
     if ( mb_strlen( trim( $credit_name ) ) < 2 ) { $credit_on = false; }
@@ -206,12 +208,14 @@ $selected_order_id = isset($_GET['order_id']) ? intval($_GET['order_id']) : 0;
     <h2 style="margin-bottom: 20px;">💳 Billing & POS System (<?php echo date('d M, Y', strtotime($today)); ?>)</h2>
 
     <div class="billing-stats-grid">
+        <div style="display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:12px; margin-bottom:18px;">
             <div class="b-stat-card b-total"><small>Today's Total Orders</small><strong><?php echo intval( $billing_stats->total_orders ?: 0 ); ?></strong></div>
             <div class="b-stat-card b-collection"><small>Total Collection</small><strong><?php echo number_format( round( $cash_in_today ), 2 ); ?> ৳</strong></div>
             <div class="b-stat-card b-pending-cash"><small>Pending Collection</small><strong style="color: #e67e22;"><?php echo number_format( round( (float) $billing_stats->pending_collection ), 2 ); ?> ৳</strong></div>
             <div class="b-stat-card b-avg"><small>Avg. Order Value</small><strong><?php echo number_format( round( (float) $billing_stats->avg_order, 2 ), 2 ); ?> ৳</strong></div>
             <div class="b-stat-card"><small>Credit Given Today (বাকি)</small><strong style="color: #c2410c;"><?php echo number_format( round( $credit_today ), 2 ); ?> ৳</strong></div>
             <div class="b-stat-card"><small>Customer Due Outstanding</small><strong style="color: #dc2626;"><?php echo number_format( round( $due_outstanding ), 2 ); ?> ৳</strong></div>
+        </div>
     </div>
 
     <div class="billing-main-wrapper">
@@ -228,7 +232,10 @@ $selected_order_id = isset($_GET['order_id']) ? intval($_GET['order_id']) : 0;
                                 <strong>{$so->table_name}</strong>
                                 <span style='color:#27ae60; font-weight:bold;'>".number_format(round($so->grand_total), 2)." ৳</span>
                             </div>
-                            <small style='color:#b2bec3;'>Order: {$inv_no} | Status: {$so->order_status}</small>
+                            <div style='display:flex; justify-content:space-between; align-items:center; margin-top:6px;'>
+                                <small style='color:#b2bec3;'>Order: {$inv_no} | Status: {$so->order_status}</small>
+                                <button type='button' onclick='event.stopPropagation(); qrrsPrintBill({$so->id});' style='background:#34495e; color:#fff; border:none; padding:5px 10px; border-radius:6px; font-size:12px; cursor:pointer;'>🖨 Print bill</button>
+                            </div>
                           </div>";
                 endforeach;
             else:
@@ -877,4 +884,71 @@ function showToastPopup(message) {
 }
 </script>
 
-<!-- last update -->
+<?php
+if ( ! empty( $GLOBALS['qrrs_auto_bill_id'] ) && function_exists( 'qrrs_bill_auto_print_script' ) ) {
+    echo qrrs_bill_auto_print_script( (int) $GLOBALS['qrrs_auto_bill_id'] );
+}
+?>
+
+<script>
+var QRRS_BILL = {
+    ajax:   <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>,
+    nonce:  <?php echo wp_json_encode( wp_create_nonce( 'qr_order_nonce' ) ); ?>,
+    device: <?php echo wp_json_encode( (string) ( ( function_exists( 'qrrs_printer_get' ) && $active_res_id ) ? ( qrrs_printer_get( intval( $active_res_id ) )['usb_name'] ?? '' ) : '' ) ); ?>,
+    copies: <?php echo max( 1, intval( ( function_exists( 'qrrs_printer_get' ) && $active_res_id ) ? ( qrrs_printer_get( intval( $active_res_id ) )['copies'] ?? 1 ) : 1 ) ); ?>,
+    drawer: <?php echo ( function_exists( 'qrrs_printer_get' ) && $active_res_id && ! empty( qrrs_printer_get( intval( $active_res_id ) )['drawer'] ) ) ? 'true' : 'false'; ?>
+};
+function qrrsPrintBill(orderId) {
+    var inApp = !!(window.dinexPos && window.dinexPos.silentPrint);
+    var body = new URLSearchParams({ action: 'qrrs_bill_print', order_id: orderId, security: QRRS_BILL.nonce, silent: inApp ? 1 : 0 });
+    fetch(QRRS_BILL.ajax, { method: 'POST', body: body, credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+            if (!j || !j.success) { alert((j && j.data) ? j.data : 'Could not make the bill.'); return; }
+            if (inApp) {
+                window.dinexPos.silentPrint(j.data.html, QRRS_BILL.device, QRRS_BILL.copies).then(function () {
+                    if (QRRS_BILL.drawer && window.dinexPos.openDrawer) window.dinexPos.openDrawer(QRRS_BILL.device);
+                });
+                return;
+            }
+            var w = window.open('', '_blank');
+            if (!w) { alert('Allow pop-ups to print the bill.'); return; }
+            w.document.open(); w.document.write(j.data.html); w.document.close();
+        })
+        .catch(function () { alert('Network error. Please try again.'); });
+}
+</script>
+
+<?php
+// Billing buttons follow the role: a button the role cannot use is not shown
+$__perm = [
+    'settle'   => ! function_exists( 'qrrs_can' ) || qrrs_can( 'billing.settle' ),
+    'discount' => ! function_exists( 'qrrs_can' ) || qrrs_can( 'billing.discount' ),
+    'credit'   => ! function_exists( 'qrrs_can' ) || qrrs_can( 'billing.credit' ),
+];
+if ( ! $__perm['discount'] || ! $__perm['credit'] || ! $__perm['settle'] ) : ?>
+<style>
+<?php if ( ! $__perm['credit'] ) : ?>#credit-toggle, #credit-box { display: none !important; }<?php endif; ?>
+<?php if ( ! $__perm['settle'] ) : ?>#split-toggle { display: none !important; }<?php endif; ?>
+</style>
+<script>
+(function () {
+    var P = <?php echo wp_json_encode( $__perm ); ?>;
+    function hide(el) { if (el) el.style.display = 'none'; }
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!P.discount) {
+            var b = document.getElementById('btn-discount-percent');
+            if (b && b.parentElement) hide(b.parentElement);
+        }
+        if (!P.settle) {
+            var h = document.getElementById('hidden-order-id');
+            if (h && h.form) {
+                h.form.querySelectorAll('button').forEach(function (x) {
+                    if (/settle|collect|complete/i.test(x.textContent)) hide(x);
+                });
+            }
+        }
+    });
+})();
+</script>
+<?php endif; ?>

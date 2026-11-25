@@ -17,7 +17,12 @@
         <p>Use your credentials to access the system.</p>
 
         <?php if ( isset($_GET['login']) && $_GET['login'] == 'failed' ) : ?>
-            <div class="error-msg">Invalid username or password!</div>
+            <?php
+                $__key = 'qrrs_lm_' . md5( $_SERVER['REMOTE_ADDR'] ?? '' );
+                $__lm  = get_transient( $__key );
+                if ( $__lm ) delete_transient( $__key );
+            ?>
+            <div class="error-msg"><?php echo esc_html( $__lm ? $__lm : 'Invalid username or password!' ); ?></div>
         <?php endif; ?>
 
         <form method="POST" action="" autocomplete="on">

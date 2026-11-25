@@ -10,6 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
  */
 
 function qrrs_void_panel_html( $order ) {
+    if ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'billing.void' ) ) return '';
     if ( ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() ) return;
     $msgs = [
         'voided'        => [ 'ok',  'Bill voided. Kitchen stock was returned.' ],
@@ -64,8 +65,8 @@ function qrrs_void_panel_html( $order ) {
 }
 
 add_action( 'admin_post_qrrs_void_refund', function () {
-    if ( ! is_user_logged_in() || ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() ) {
-        wp_die( 'Only a manager or administrator can void or refund a bill.' );
+    if ( ! is_user_logged_in() || ( ! function_exists( 'qrrs_can' ) ? ( ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() ) : ! qrrs_can( 'billing.void' ) ) ) {
+        wp_die( 'You are not allowed to void or refund a bill.' );
     }
     global $wpdb;
     $id   = intval( $_POST['order_id'] ?? 0 );
@@ -121,6 +122,7 @@ add_action( 'admin_post_qrrs_void_refund', function () {
 
 /** Void / refund button (placed beside the collect button) with a reason popup. */
 function qrrs_void_button_html( $order ) {
+    if ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'billing.void' ) ) return '';
     if ( ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() ) return;
     global $wpdb;
     $id   = intval( $order->id );

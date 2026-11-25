@@ -41,14 +41,14 @@ function qrrs_inventory_user_department() {
 }
 
 function qrrs_inventory_can_manage() {
-    return current_user_can( 'administrator' ) || current_user_can( 'qr_manager' );
+    return current_user_can( 'administrator' ) || current_user_can( 'qr_manager' ) || current_user_can( 'qr_restaurant_admin' );
 }
 
 /**
  * Only administrators and super admins can add/edit raw materials and categories.
  */
 function qrrs_inventory_is_admin() {
-    return current_user_can( 'administrator' ) || ( function_exists( 'is_super_admin' ) && is_super_admin() );
+    return current_user_can( 'administrator' ) || current_user_can( 'qr_restaurant_admin' ) || ( function_exists( 'is_super_admin' ) && is_super_admin() );
 }
 
 function qrrs_inventory_can_request() {
@@ -496,7 +496,7 @@ function qrrs_inventory_render_requisition_panel( $forced_department = '' ) {
  * Bump QRRS_SCHEMA_VERSION whenever a table or column is added.
  */
 if ( ! defined( 'QRRS_SCHEMA_VERSION' ) ) {
-    define( 'QRRS_SCHEMA_VERSION', '2026.11.09-31' );
+    define( 'QRRS_SCHEMA_VERSION', '2026.11.09-35' );
 }
 add_action( 'init', function () {
     if ( get_option( 'qrrs_schema_version' ) === QRRS_SCHEMA_VERSION ) {
