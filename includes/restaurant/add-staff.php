@@ -43,6 +43,7 @@ if ( isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id']) )
 
 // 4. Save/Update
 if ( isset($_POST['save_staff']) ) {
+    if ( ! qrrs_is_full_admin() && function_exists( 'qrrs_can' ) && ! qrrs_can( 'hr.staff' ) ) { wp_die( 'Your role cannot manage staff.' ); }
     $sid = $edit_mode ? intval($_GET['id']) : 0;
     $restaurant_id = intval( $_POST['restaurant_id'] );
     $role_key   = sanitize_text_field( $_POST['staff_role'] );

@@ -30,6 +30,7 @@ function qrrs_accounts_render( $rid ) {
         'hr'        => '👥 HR Overview'
     ];
     ?>
+    <?php echo function_exists( 'qrrs_hide_forms_script' ) ? qrrs_hide_forms_script() : ''; ?>
     <div class="qrrs-acc-wrapper">
         
         <!-- Header Section -->

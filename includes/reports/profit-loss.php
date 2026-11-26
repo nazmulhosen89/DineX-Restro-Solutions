@@ -56,7 +56,7 @@ function qrrs_pl_data( $rid, $from, $to ) {
 }
 
 add_action( 'admin_post_qrrs_add_expense', function () {
-    if ( ! is_user_logged_in() || ! qrrs_pl_user_can() ) wp_die( 'Not allowed.' );
+    if ( ! is_user_logged_in() || ! qrrs_pl_user_can() || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'accounts.expense' ) ) ) wp_die( 'Not allowed.' );
     global $wpdb;
     check_admin_referer( 'qrrs_add_expense' );
     $rid  = intval( qrrs_inventory_get_active_restaurant_id() );
@@ -77,7 +77,7 @@ add_action( 'admin_post_qrrs_add_expense', function () {
 } );
 
 add_action( 'admin_post_qrrs_delete_expense', function () {
-    if ( ! is_user_logged_in() || ! qrrs_pl_user_can() ) wp_die( 'Not allowed.' );
+    if ( ! is_user_logged_in() || ! qrrs_pl_user_can() || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'accounts.expense' ) ) ) wp_die( 'Not allowed.' );
     global $wpdb;
     $id = intval( $_POST['expense_id'] ?? 0 );
     check_admin_referer( 'qrrs_delete_expense_' . $id );

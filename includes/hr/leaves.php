@@ -25,7 +25,7 @@ function qrrs_leave_days_used( $restaurant_id, $staff_id, $type_id, $year ) {
 }
 
 add_action( 'admin_post_qrrs_leave_save', function () {
-    if ( ! is_user_logged_in() || ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() ) wp_die( 'Not allowed.' );
+    if ( ! is_user_logged_in() || ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'hr.leave' ) ) ) wp_die( 'Not allowed.' );
     check_admin_referer( 'qrrs_leave_save' );
     global $wpdb;
     $rid   = intval( $_POST['restaurant_id'] ?? 0 );
@@ -61,7 +61,7 @@ add_action( 'admin_post_qrrs_leave_save', function () {
 } );
 
 add_action( 'admin_post_qrrs_leave_remove', function () {
-    if ( ! is_user_logged_in() || ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() ) wp_die( 'Not allowed.' );
+    if ( ! is_user_logged_in() || ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'hr.leave' ) ) ) wp_die( 'Not allowed.' );
     global $wpdb;
     $id  = intval( $_POST['leave_id'] ?? 0 );
     check_admin_referer( 'qrrs_leave_remove_' . $id );

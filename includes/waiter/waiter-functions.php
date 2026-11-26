@@ -109,6 +109,10 @@ function qrrs_submit_waiter_order() {
     $items          = json_decode(wp_unslash($_POST['items'] ?? '[]'), true);
 
     if (empty($items) || !is_array($items)) { wp_send_json_error('Cart is empty!'); return; }
+    if (is_user_logged_in() && function_exists('qrrs_can')) {
+        $need = $order_id > 0 ? 'order.edit' : 'order.create';
+        if (!qrrs_can($need)) { wp_send_json_error($order_id > 0 ? 'Your role cannot change orders.' : 'Your role cannot take orders.'); return; }
+    }
 
     // Server recalculates prices, sizes, add-ons, VAT and service charge (waiter orders are dine-in).
     $checked = qrrs_validate_order_items($restaurant_id, $items);
@@ -337,6 +341,9 @@ function handle_waiter_status_update() {
     $order_id = intval($_POST['order_id'] ?? 0);
     $status   = sanitize_text_field($_POST['status'] ?? '');
     if (!$order_id || !$status) { wp_send_json_error('Missing data.'); return; }
+    if ($status === 'cancelled' && is_user_logged_in() && function_exists('qrrs_can') && !qrrs_can('order.cancel')) {
+        wp_send_json_error('Your role cannot cancel orders.'); return;
+    }
 
     $update = ['order_status' => $status];
 

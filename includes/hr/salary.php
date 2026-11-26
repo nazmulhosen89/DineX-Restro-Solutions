@@ -50,7 +50,7 @@ function qrrs_salary_unpaid_days( $restaurant_id, $staff_id, $pstart, $pend ) {
 }
 
 add_action( 'admin_post_qrrs_salary_pay', function () {
-    if ( ! is_user_logged_in() || ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() ) wp_die( 'Not allowed.' );
+    if ( ! is_user_logged_in() || ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'hr.salary' ) ) ) wp_die( 'Not allowed.' );
     check_admin_referer( 'qrrs_salary_pay' );
     global $wpdb;
     $rid    = intval( $_POST['restaurant_id'] ?? 0 );

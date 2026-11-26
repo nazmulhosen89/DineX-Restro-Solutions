@@ -74,6 +74,23 @@ function qrrs_can( $action ) {
     return in_array( $action, qrrs_role_actions( $role ), true );
 }
 
+/** Hides the forms of actions this role cannot use (the server checks them as well). */
+function qrrs_hide_forms_script() {
+    $map = [
+        'accounts.expense' => [ 'qrrs_add_expense', 'qrrs_delete_expense' ],
+        'accounts.closing' => [ 'qrrs_day_close' ],
+        'hr.staff'         => [ 'qrrs_staff_pay_save', 'qrrs_staff_row_remove' ],
+        'hr.leave'         => [ 'qrrs_leave_save', 'qrrs_leave_remove' ],
+        'hr.salary'        => [ 'qrrs_salary_pay' ],
+    ];
+    $hide = [];
+    foreach ( $map as $perm => $acts ) {
+        if ( ! function_exists( 'qrrs_can' ) || ! qrrs_can( $perm ) ) $hide = array_merge( $hide, $acts );
+    }
+    if ( empty( $hide ) ) return '';
+    return '<script>(function(){ var A=' . wp_json_encode( $hide ) . '; A.forEach(function(a){ document.querySelectorAll(\'input[name="action"][value="\'+a+\'"]\').forEach(function(i){ if (i.form) i.form.style.display="none"; }); }); })();</script>';
+}
+
 /** Tick boxes for the actions, grouped by module. */
 function qrrs_action_pills( $selected, $prefix = '' ) {
     $sel = (array) $selected;

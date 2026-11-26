@@ -1,3 +1,4 @@
+<?php if ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'order.cancel' ) ) : ?><style>.btn-cancel{display:none!important;}</style><?php endif; ?>
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 

@@ -29,7 +29,7 @@ function qrrs_staff_display_name( $row ) {
 }
 
 add_action( 'admin_post_qrrs_staff_pay_save', function () {
-    if ( ! is_user_logged_in() || ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() ) wp_die( 'Not allowed.' );
+    if ( ! is_user_logged_in() || ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'hr.staff' ) ) ) wp_die( 'Not allowed.' );
     global $wpdb;
     $id  = intval( $_POST['row_id'] ?? 0 );
     check_admin_referer( 'qrrs_staff_pay_save_' . $id );
@@ -47,7 +47,7 @@ add_action( 'admin_post_qrrs_staff_pay_save', function () {
 } );
 
 add_action( 'admin_post_qrrs_staff_row_remove', function () {
-    if ( ! is_user_logged_in() || ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() ) wp_die( 'Not allowed.' );
+    if ( ! is_user_logged_in() || ! function_exists( 'qrrs_inventory_can_manage' ) || ! qrrs_inventory_can_manage() || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'hr.staff' ) ) ) wp_die( 'Not allowed.' );
     global $wpdb;
     $id  = intval( $_POST['row_id'] ?? 0 );
     check_admin_referer( 'qrrs_staff_row_remove_' . $id );

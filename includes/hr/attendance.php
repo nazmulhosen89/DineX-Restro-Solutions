@@ -42,6 +42,7 @@ function qrrs_hr_render( $restaurant_id ) {
     ) );
     $can   = function_exists( 'qrrs_inventory_can_manage' ) && qrrs_inventory_can_manage();
     ?>
+    <?php echo function_exists( 'qrrs_hide_forms_script' ) ? qrrs_hide_forms_script() : ''; ?>
     <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px; margin-bottom:14px;">
         <p style="margin:0 0 6px; font-size:15px; color:#1e293b;"><strong>Active staff:</strong> <?php echo $staff; ?></p>
         <p style="margin:0; font-size:13px; color:#64748b;">Staff list: Settings → Staff.</p>

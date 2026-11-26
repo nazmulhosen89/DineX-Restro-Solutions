@@ -333,6 +333,9 @@ function qrrs_review_qr_order() {
     if ( ! $order_id || ! in_array( $decision, [ 'approve', 'cancel' ], true ) ) {
         wp_send_json_error( 'Invalid review request.' );
     }
+    if ( 'cancel' === $decision && function_exists( 'qrrs_can' ) && ! qrrs_can( 'order.cancel' ) ) {
+        wp_send_json_error( 'Your role cannot cancel orders.' );
+    }
 
     $orders_table = $wpdb->prefix . 'qrrs_orders';
     $order = $wpdb->get_row( $wpdb->prepare(

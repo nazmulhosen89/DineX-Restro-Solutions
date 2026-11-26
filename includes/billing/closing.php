@@ -94,7 +94,7 @@ function qrrs_closing_saved( $rid, $date ) {
 }
 
 add_action( 'admin_post_qrrs_day_close', function () {
-    if ( ! is_user_logged_in() || ! qrrs_closing_user_can() ) wp_die( 'Only a manager or administrator can close the day.' );
+    if ( ! is_user_logged_in() || ! qrrs_closing_user_can() || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'accounts.closing' ) ) ) wp_die( 'Your role cannot close the day.' );
     global $wpdb;
     $rid  = intval( $_POST['restaurant_id'] ?? 0 );
     $date = sanitize_text_field( $_POST['closing_date'] ?? '' );
