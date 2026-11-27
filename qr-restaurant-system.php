@@ -65,6 +65,7 @@ require_once QRRS_PATH . 'includes/printer/printer.php';
 require_once QRRS_PATH . 'includes/billing/receipt.php';
 require_once QRRS_PATH . 'includes/hr/attendance.php';
 require_once QRRS_PATH . 'includes/restaurant/roles.php';
+require_once QRRS_PATH . 'includes/hr/attendance-log.php';
 require_once QRRS_PATH . 'includes/hr/leave-types.php';
 require_once QRRS_PATH . 'includes/hr/leaves.php';
 
@@ -75,6 +76,7 @@ require_once QRRS_PATH . 'includes/hr/leaves.php';
 add_action( 'init', function () {
     if ( ! get_role( 'qr_cashier' ) ) add_role( 'qr_cashier', 'Cashier', [ 'read' => true ] );
     if ( ! get_role( 'qr_restaurant_admin' ) ) add_role( 'qr_restaurant_admin', 'Restaurant Admin', [ 'read' => true ] );
+    if ( ! get_role( 'qr_support' ) ) add_role( 'qr_support', 'Support Staff', [ 'read' => true ] );
 }, 5 );
 
 /** The role name shown under the user's name, in plain words. */
@@ -103,11 +105,14 @@ function qrrs_is_system_user_only( $user = null ) {
     $user = $user ?: wp_get_current_user();
     if ( ! $user || ! $user->ID ) return false;
     if ( in_array( 'administrator', (array) $user->roles, true ) ) return false;
-    return ! empty( array_intersect( [ 'qr_manager', 'qr_waiter', 'qr_kitchen', 'qr_cashier', 'qr_restaurant_admin' ], (array) $user->roles ) );
+    return ! empty( array_intersect( [ 'qr_manager', 'qr_waiter', 'qr_kitchen', 'qr_cashier', 'qr_restaurant_admin', 'qr_support' ], (array) $user->roles ) );
 }
 
 add_action( 'admin_init', function () {
     if ( wp_doing_ajax() || wp_doing_cron() ) return;
+    // form posts (admin-post.php) must still work for the restaurant system users
+    $page = isset( $GLOBALS['pagenow'] ) ? $GLOBALS['pagenow'] : '';
+    if ( in_array( $page, [ 'admin-post.php', 'admin-ajax.php', 'async-upload.php', 'media-upload.php' ], true ) ) return;
     if ( qrrs_is_system_user_only() ) {
         wp_safe_redirect( home_url( '/restaurant-dashboard/' ) );
         exit;
@@ -132,7 +137,7 @@ function qrrs_staff_block_reason( $user ) {
     global $wpdb;
     $staff_rows = (int) $wpdb->get_var( $wpdb->prepare(
         "SELECT COUNT(*) FROM {$wpdb->prefix}qrrs_staff WHERE user_id = %d", $user->ID ) );
-    $staff_roles = [ 'qr_manager', 'qr_waiter', 'qr_kitchen', 'qr_cashier' ];
+    $staff_roles = [ 'qr_manager', 'qr_waiter', 'qr_kitchen', 'qr_cashier', 'qr_support' ];
     $has_role = ! empty( array_intersect( $staff_roles, (array) $user->roles ) );
 
     // not a member of this system at all
@@ -471,6 +476,9 @@ function handle_qr_order_placement() {
     if ( ! isset($_POST['security']) || ! wp_verify_nonce($_POST['security'], 'qr_order_nonce') ) {
         wp_send_json_error('Security check failed.');
     }
+    if ( is_user_logged_in() && function_exists('qrrs_can') && ! qrrs_can('order.create') ) {
+        wp_send_json_error('Your role cannot take orders.');
+    }
 
     global $wpdb;
     $order_table = $wpdb->prefix . 'qrrs_orders';
@@ -689,6 +697,9 @@ function handle_update_dashboard_order_status() {
 
     if ( ! isset($_POST['order_id']) || ! isset($_POST['status']) ) {
         wp_send_json_error('Missing data.');
+    }
+    if ( sanitize_text_field( $_POST['status'] ) === 'cancelled' && is_user_logged_in() && function_exists('qrrs_can') && ! qrrs_can('order.cancel') ) {
+        wp_send_json_error('Your role cannot cancel orders.');
     }
 
     global $wpdb;

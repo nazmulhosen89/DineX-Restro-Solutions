@@ -44,7 +44,7 @@ function qrrs_wastage_handle_actions( $restaurant_id, $can_request, $can_manage 
     $item_table = $wpdb->prefix . 'qrrs_inventory_items';
     $action     = sanitize_key( $_POST['qrrs_inventory_action'] ?? '' );
 
-    if ( ! isset( $_POST['qrrs_inventory_nonce'] ) || ! wp_verify_nonce( $_POST['qrrs_inventory_nonce'], 'qrrs_inventory_action' ) ) {
+    if ( ! isset( $_POST['qrrs_inventory_nonce'] ) || ( ! wp_verify_nonce( $_POST['qrrs_inventory_nonce'], 'qrrs_inventory_action' ) || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'inventory.edit' ) ) ) ) {
         wp_die( 'Security check failed' );
     }
 
@@ -230,7 +230,7 @@ function qrrs_wastage_render( $restaurant_id, $can_request, $can_manage, $form_a
     $act  = null === $form_action ? $base : $form_action;
     ?>
     <?php if ( $can_request ) : ?>
-    <div class="qrrs-card" style="background:#fff; padding:25px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:20px !important; box-shadow:0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    <div class="qrrs-card" style="background:#fff; padding:25px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:25px; box-shadow:0 4px 6px -1px rgba(0, 0, 0, 0.05);">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px; border-bottom:1px solid #f1f5f9; padding-bottom:12px;">
             <span class="material-icons-outlined" style="color:#2563eb; font-size:22px;">report_problem</span>
             <h3 style="margin:0; font-size:17px; color:#1e293b; font-weight:700;">Report Wastage</h3>
@@ -286,7 +286,7 @@ function qrrs_wastage_render( $restaurant_id, $can_request, $can_manage, $form_a
     ) ) : [];
     ?>
     <?php if ( $can_manage ) : ?>
-    <div class="qrrs-card" style="background:#fff; padding:25px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:20px !important; box-shadow:0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    <div class="qrrs-card" style="background:#fff; padding:25px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:25px; box-shadow:0 4px 6px -1px rgba(0, 0, 0, 0.05);">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px; border-bottom:1px solid #f1f5f9; padding-bottom:12px;">
             <span class="material-icons-outlined" style="color:#d97706; font-size:22px;">hourglass_top</span>
             <h3 style="margin:0; font-size:17px; color:#1e293b; font-weight:700;">Pending Approval (<?php echo count( $pending ); ?>)</h3>
@@ -348,7 +348,7 @@ function qrrs_wastage_render( $restaurant_id, $can_request, $can_manage, $form_a
     foreach ( $summary as $s ) { $grand_value += (float) $s->value; }
     ?>
     <?php if ( $can_manage ) : ?>
-    <div class="qrrs-card" style="background:#fff; padding:25px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:20px !important; box-shadow:0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+    <div class="qrrs-card" style="background:#fff; padding:25px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:25px; box-shadow:0 4px 6px -1px rgba(0, 0, 0, 0.05);">
         
         <!-- 📌 Wastage Summary Header with Month Picker & Icon Search Button -->
         <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center; flex-wrap:nowrap; gap:15px; margin-bottom:15px; border-bottom:1px solid #f1f5f9; padding-bottom:12px;">

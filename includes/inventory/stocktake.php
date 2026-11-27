@@ -60,7 +60,7 @@ function qrrs_stocktake_handle_actions( $restaurant_id, $can_manage ) {
     $item_t = $wpdb->prefix . 'qrrs_inventory_items';
     $action = sanitize_key( $_POST['qrrs_inventory_action'] ?? '' );
 
-    if ( ! isset( $_POST['qrrs_inventory_nonce'] ) || ! wp_verify_nonce( $_POST['qrrs_inventory_nonce'], 'qrrs_inventory_action' ) ) {
+    if ( ! isset( $_POST['qrrs_inventory_nonce'] ) || ( ! wp_verify_nonce( $_POST['qrrs_inventory_nonce'], 'qrrs_inventory_action' ) || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'inventory.edit' ) ) ) ) {
         wp_die( 'Security check failed' );
     }
     if ( ! $can_manage ) {
@@ -255,42 +255,21 @@ function qrrs_stocktake_render( $restaurant_id, $can_manage ) {
     $open = qrrs_stocktake_open( $restaurant_id );
 
     if ( ! $open ) : ?>
-        <div class="qrrs-card" style="background:#fff; padding:25px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:20px !important; box-shadow:0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px; border-bottom:1px solid #f1f5f9; padding-bottom:12px;">
-                <span class="material-icons-outlined" style="color:#2563eb; font-size:22px;">playlist_add_check</span>
-                <h3 style="margin:0; font-size:17px; color:#1e293b; font-weight:700;">Start a Stocktake</h3>
-            </div>
-            
-            <p style="color:#64748b; font-size:13px; line-height:1.6; margin-bottom:20px !important;">
-                Choose the type. The name is created automatically from the type and today's date.<br>
-                <strong>Opening:</strong> first count. <strong>Month-end:</strong> at the end of the month. <strong>Recheck:</strong> count again to confirm a previous result.
-            </p>
-
-            <!-- 📌 100% Fixed One-Line Form Layout -->
-            <form method="post" action="<?php echo esc_url( $base ); ?>" style="margin:0; white-space:nowrap;">
+        <div class="qrrs-card" style="padding:20px; margin-bottom:20px;">
+            <h3 style="margin-top:0;">Start a Stocktake</h3>
+            <p style="color:#64748b; font-size:13px;">Choose the type. The name is created automatically from the type and today's date.<br>Opening: first count. Month-end: at the end of the month. Recheck: count again to confirm a previous result.</p>
+            <form method="post" action="<?php echo esc_url( $base ); ?>" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                 <?php wp_nonce_field( 'qrrs_inventory_action', 'qrrs_inventory_nonce' ); ?>
                 <input type="hidden" name="qrrs_inventory_action" value="stocktake_start">
-                
-                <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
-                    <div style="flex:1; min-width:250px;">
-                        <select name="count_type" required style="width:100% !important; height:42px !important; padding:0 12px !important; border:1px solid #cbd5e1 !important; border-radius:8px !important; font-size:14px !important; background:#fff !important; box-sizing:border-box !important;">
-                            <option value="">Choose count type</option>
-                            <?php foreach ( qrrs_stocktake_types() as $key => $label ) : ?>
-                                <option value="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $label ); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    
-                    <div style="display:inline-block; vertical-align:middle;">
-                        <button type="submit" class="qrrs-btn-save" style="height:42px !important; padding:0 24px !important; background:#2563eb !important; color:#fff !important; border:none !important; border-radius:8px !important; font-weight:600 !important; cursor:pointer !important; display:inline-flex !important; align-items:center !important; gap:6px !important;">
-                            <span class="material-icons-outlined" style="font-size:18px;">play_arrow</span> Start Stocktake
-                        </button>
-                    </div>
-                </div>
+                <select name="count_type" required style="min-width:200px; padding:6px 10px;">
+                    <option value="">Choose count type</option>
+                    <?php foreach ( qrrs_stocktake_types() as $key => $label ) : ?>
+                        <option value="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $label ); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" class="qrrs-btn-save">Start Stocktake</button>
             </form>
         </div>
-
-        
     <?php else :
         $lines = $wpdb->get_results( $wpdb->prepare(
             "SELECT l.inventory_item_id, l.counted_qty, l.system_qty, i.item_name, i.current_stock, i.cost_per_unit, u.unit_code
@@ -303,7 +282,7 @@ function qrrs_stocktake_render( $restaurant_id, $can_manage ) {
         ) );
         $fmt = function ( $n ) { return rtrim( rtrim( number_format( (float) $n, 3, '.', '' ), '0' ), '.' ); };
         ?>
-        <div class="qrrs-card" style="padding:20px; margin-bottom:20px !important;">
+        <div class="qrrs-card" style="padding:20px; margin-bottom:20px;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                 <div>
                     <h3 style="margin:0;"><?php echo esc_html( $open->note ?: 'Stocktake #' . $open->id ); ?> <span style="font-size:13px; color:#64748b; font-weight:normal;">· <?php echo esc_html( qrrs_stocktake_types()[ $open->count_type ] ?? '' ); ?> · open</span></h3>

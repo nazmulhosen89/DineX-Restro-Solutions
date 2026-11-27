@@ -107,7 +107,7 @@ function qrrs_purchase_handle_save( $restaurant_id ) {
     $item_table = $wpdb->prefix . 'qrrs_inventory_items';
     $sup_table  = $wpdb->prefix . 'qrrs_suppliers';
 
-    if ( ! isset( $_POST['qrrs_inventory_nonce'] ) || ! wp_verify_nonce( $_POST['qrrs_inventory_nonce'], 'qrrs_inventory_action' ) ) {
+    if ( ! isset( $_POST['qrrs_inventory_nonce'] ) || ( ! wp_verify_nonce( $_POST['qrrs_inventory_nonce'], 'qrrs_inventory_action' ) || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'inventory.edit' ) ) ) ) {
         wp_die( 'Security check failed' );
     }
 
@@ -292,7 +292,7 @@ add_action( 'admin_post_qrrs_download_bill', function () {
 
 /** Saves the purchase settings card (bill attachment threshold). */
 function qrrs_purchase_handle_settings( $restaurant_id ) {
-    if ( ! isset( $_POST['qrrs_inventory_nonce'] ) || ! wp_verify_nonce( $_POST['qrrs_inventory_nonce'], 'qrrs_inventory_action' ) ) {
+    if ( ! isset( $_POST['qrrs_inventory_nonce'] ) || ( ! wp_verify_nonce( $_POST['qrrs_inventory_nonce'], 'qrrs_inventory_action' ) || ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'inventory.edit' ) ) ) ) {
         wp_die( 'Security check failed' );
     }
     $threshold = floatval( $_POST['attachment_threshold'] ?? 0 );
@@ -364,94 +364,88 @@ function qrrs_purchase_render_form( $restaurant_id, $can_manage ) {
         $item_options .= '<option value="' . intval( $it->id ) . '" data-cost="' . esc_attr( $it->cost_per_unit ) . '">' . esc_html( $label ) . '</option>';
     }
     ?>
-    <div class="qrrs-card" style="background:#fff; padding:25px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:25px; box-shadow:0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px; border-bottom:1px solid #f1f5f9; padding-bottom:12px;">
-            <span class="material-icons-outlined" style="color:#2563eb; font-size:22px;">inventory_2</span>
-            <h3 style="margin:0; font-size:17px; color:#1e293b; font-weight:700;">Stock In / Purchase</h3>
-        </div>
-        <p style="color:#64748b; font-size:13px; margin-top:0; margin-bottom:20px;">One bill can contain many items. Add all lines, then save once.</p>
+    <div class="qrrs-card" style="padding:20px;">
+        <h3 style="margin-top:0;">Stock In / Purchase</h3>
+        <p style="color:#64748b; font-size:13px; margin-top:-6px;">One bill can contain many items. Add all lines, then save once.</p>
 
         <?php if ( empty( $suppliers ) ) : ?>
-            <div style="background:#fef3c7; color:#92400e; padding:12px 16px; border-radius:8px;">No active supplier yet. Add one in the Suppliers tab first.</div>
+            <div style="background:#fef3c7; color:#92400e; padding:10px 14px; border-radius:6px;">No active supplier yet. Add one in the Suppliers tab first.</div>
         <?php elseif ( empty( $items ) ) : ?>
-            <div style="background:#fef3c7; color:#92400e; padding:12px 16px; border-radius:8px;">No active raw material yet. Add items in the Raw Materials tab first.</div>
+            <div style="background:#fef3c7; color:#92400e; padding:10px 14px; border-radius:6px;">No active raw material yet. Add items in the Raw Materials tab first.</div>
         <?php else : ?>
-        <form method="post" action="<?php echo esc_url( $action_url ); ?>" enctype="multipart/form-data" id="qrrs-purchase-form" style="margin:0;">
+        <form method="post" action="<?php echo esc_url( $action_url ); ?>" enctype="multipart/form-data" id="qrrs-purchase-form">
             <?php wp_nonce_field( 'qrrs_inventory_action', 'qrrs_inventory_nonce' ); ?>
             <input type="hidden" name="qrrs_inventory_action" value="save_purchase">
 
-            <div class="qrrs-form-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:20px; margin-bottom:18px;">
-                <div class="qrrs-input-group" style="margin:0;">
-                    <label style="display:block; font-weight:600; font-size:13px; margin-bottom:6px; color:#475569;">Supplier *</label>
-                    <select name="supplier_id" required style="width:100%; height:42px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; background:#fff; box-sizing:border-box;">
+            <div class="qrrs-form-grid">
+                <div class="qrrs-input-group">
+                    <label>Supplier *</label>
+                    <select name="supplier_id" required>
                         <option value="">Select supplier</option>
                         <?php foreach ( $suppliers as $sp ) : ?>
                             <option value="<?php echo intval( $sp->id ); ?>"><?php echo esc_html( $sp->supplier_name ); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="qrrs-input-group" style="margin:0;">
-                    <label style="display:block; font-weight:600; font-size:13px; margin-bottom:6px; color:#475569;">Invoice / Bill No *</label>
-                    <input type="text" name="invoice_no" maxlength="100" required placeholder="e.g. INV-2026-0041" style="width:100%; height:42px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; background:#fff; box-sizing:border-box;">
+                <div class="qrrs-input-group">
+                    <label>Invoice / Bill No *</label>
+                    <input type="text" name="invoice_no" maxlength="100" required placeholder="e.g. INV-2026-0041">
                 </div>
-                <div class="qrrs-input-group" style="margin:0;">
-                    <label style="display:block; font-weight:600; font-size:13px; margin-bottom:6px; color:#475569;">Invoice Date</label>
-                    <input type="date" name="invoice_date" value="<?php echo esc_attr( current_time( 'Y-m-d' ) ); ?>" style="width:100%; height:42px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; background:#fff; box-sizing:border-box;">
+                <div class="qrrs-input-group">
+                    <label>Invoice Date</label>
+                    <input type="date" name="invoice_date" value="<?php echo esc_attr( current_time( 'Y-m-d' ) ); ?>">
                 </div>
-                <div class="qrrs-input-group" style="margin:0;">
-                    <label style="display:block; font-weight:600; font-size:13px; margin-bottom:6px; color:#475569;">Bill Attachment</label>
-                    <input type="file" name="bill_file" accept=".jpg,.jpeg,.png,.pdf" style="width:100%; padding:8px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; font-size:13px; box-sizing:border-box;">
-                    <small style="color:#64748b; font-size:11px; display:block; margin-top:4px;">
+                <div class="qrrs-input-group">
+                    <label>Bill Attachment</label>
+                    <input type="file" name="bill_file" accept=".jpg,.jpeg,.png,.pdf">
+                    <small style="color:#64748b;">
                         JPG, PNG or PDF, max 5 MB. <?php echo $threshold > 0 ? 'Required when total is above ৳' . esc_html( number_format( $threshold, 2 ) ) . '.' : ''; ?>
                     </small>
                 </div>
             </div>
 
-            <div class="qrrs-input-group" style="margin-bottom:20px;">
-                <label style="display:block; font-weight:600; font-size:13px; margin-bottom:6px; color:#475569;">Notes</label>
-                <input type="text" name="notes" maxlength="255" placeholder="Optional" style="width:100%; height:42px; padding:0 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; background:#fff; box-sizing:border-box;">
+            <div class="qrrs-input-group" style="margin-top:10px;">
+                <label>Notes</label>
+                <input type="text" name="notes" maxlength="255" placeholder="Optional">
             </div>
 
-            <h4 style="margin:22px 0 10px; font-size:15px; color:#1e293b;">Items in this bill</h4>
+            <h4 style="margin:22px 0 8px;">Items in this bill</h4>
             <table class="qrrs-table" style="width:100%; border-collapse:collapse;" id="qrrs-purchase-lines">
                 <thead>
-                    <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0; text-align:left;">
-                        <th style="padding:12px; font-size:13px; color:#475569;">Item</th>
-                        <th style="padding:12px; font-size:13px; color:#475569; width:150px;">Quantity</th>
-                        <th style="padding:12px; font-size:13px; color:#475569; width:160px;">Unit Cost (৳)</th>
-                        <th style="padding:12px; font-size:13px; color:#475569; width:150px;">Line Total</th>
+                    <tr style="background:#f1f5f9; text-align:left;">
+                        <th style="padding:8px;">Item</th>
+                        <th style="padding:8px; width:130px;">Quantity</th>
+                        <th style="padding:8px; width:150px;">Unit Cost (৳)</th>
+                        <th style="padding:8px; width:140px;">Line Total</th>
                         <th style="width:50px;"></th>
                     </tr>
                 </thead>
                 <tbody></tbody>
                 <tfoot>
-                    <tr style="border-top:2px solid #e2e8f0; background:#f8fafc;">
-                        <td colspan="3" style="text-align:right; padding:12px; font-weight:bold; color:#1e293b;">Bill Total</td>
-                        <td style="padding:12px; font-weight:bold; color:#1e293b;" id="qrrs-purchase-total">0.00</td>
+                    <tr>
+                        <td colspan="3" style="text-align:right; padding:10px; font-weight:bold;">Bill Total</td>
+                        <td style="padding:10px; font-weight:bold;" id="qrrs-purchase-total">0.00</td>
                         <td></td>
                     </tr>
                 </tfoot>
             </table>
 
-            <!-- 📌 Flexbox container to align Add Button to left and Save Button to right -->
-            <div style="margin-top:25px; display:flex; justify-content:space-between; align-items:center; gap:15px;">
-                <button type="button" class="button" id="qrrs-add-line" style="height:40px; padding:0 16px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:8px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
-                    <span class="material-icons-outlined" style="font-size:16px;">add</span> Add item line
-                </button>
-      
-                <button type="submit" class="qrrs-btn-save" style="height:42px; padding:0 24px; background:#2563eb; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-                    <span class="material-icons-outlined" style="font-size:18px;">save</span> Save Purchase
-                </button>
+            <div style="margin-top:10px; display:flex; gap:10px;">
+                <button type="button" class="button" id="qrrs-add-line">+ Add item line</button>
+            </div>
+
+            <div style="margin-top:20px;">
+                <button type="submit" class="qrrs-btn-save">Save Purchase</button>
             </div>
         </form>
 
         <template id="qrrs-line-template">
-            <tr style="border-bottom:1px solid #f1f5f9;">
-                <td style="padding:8px;"><select name="item_id[]" class="qrrs-line-item" style="width:100%; height:38px; padding:0 10px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;"><?php echo $item_options; ?></select></td>
-                <td style="padding:8px;"><input type="number" name="qty[]" step="0.0001" min="0" class="qrrs-line-qty" style="width:100%; height:38px; padding:0 10px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;"></td>
-                <td style="padding:8px;"><input type="number" name="unit_cost[]" step="0.01" min="0" class="qrrs-line-cost" style="width:100%; height:38px; padding:0 10px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;"></td>
-                <td style="padding:8px; font-weight:600; color:#1e293b;" class="qrrs-line-total">0.00</td>
-                <td style="padding:8px; text-align:center;"><button type="button" class="qrrs-line-remove" title="Remove line" style="color:#dc2626; background:#fee2e2; border:none; border-radius:6px; width:28px; height:28px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:bold;">✕</button></td>
+            <tr>
+                <td style="padding:6px;"><select name="item_id[]" class="qrrs-line-item" style="width:100%;"><?php echo $item_options; ?></select></td>
+                <td style="padding:6px;"><input type="number" name="qty[]" step="0.0001" min="0" class="qrrs-line-qty" style="width:100%;"></td>
+                <td style="padding:6px;"><input type="number" name="unit_cost[]" step="0.01" min="0" class="qrrs-line-cost" style="width:100%;"></td>
+                <td style="padding:6px;" class="qrrs-line-total">0.00</td>
+                <td style="padding:6px;"><button type="button" class="qrrs-line-remove" title="Remove line" style="color:#dc2626; background:none; border:none; cursor:pointer; font-size:16px;">✕</button></td>
             </tr>
         </template>
 

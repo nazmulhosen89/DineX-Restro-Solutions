@@ -2,7 +2,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Load the other HR files from this folder, so they do not depend on the plugin loader
-foreach ( [ 'staff-list.php', 'leave-types.php', 'leaves.php', 'salary.php' ] as $__hr_file ) {
+foreach ( [ 'staff-list.php', 'leave-types.php', 'leaves.php', 'salary.php', 'attendance-qr.php' ] as $__hr_file ) {
     if ( file_exists( __DIR__ . '/' . $__hr_file ) ) require_once __DIR__ . '/' . $__hr_file;
 }
 
@@ -72,6 +72,8 @@ function qrrs_hr_render( $restaurant_id ) {
         </div>
     </div>
     <?php
+    if ( function_exists( 'qrrs_att_manual_render' ) ) { qrrs_att_manual_render( $rid ); }
+    if ( function_exists( 'qrrs_att_report_render' ) ) { qrrs_att_report_render( $rid ); }
     if ( function_exists( 'qrrs_staff_list_html' ) ) { qrrs_staff_list_html( $rid, 'hr' ); }
     if ( function_exists( 'qrrs_leave_types_render' ) ) { qrrs_leave_types_render( $rid ); }
     if ( function_exists( 'qrrs_leaves_render' ) ) { qrrs_leaves_render( $rid ); }

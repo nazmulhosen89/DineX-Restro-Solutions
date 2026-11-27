@@ -31,6 +31,7 @@ $recipe_items    = ($edit_id && function_exists('qrrs_inventory_get_recipe_items
 
 // --- 2. HANDLE SAVE / UPDATE LOGIC ---
 if ( isset($_POST['save_item_action']) ) {
+    if ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'menu.edit' ) ) { wp_die( 'Your role cannot change menu items.' ); }
     if (!isset($_POST['save_item_nonce_field']) || !wp_verify_nonce($_POST['save_item_nonce_field'], 'save_item_nonce')) {
         wp_die('Security check failed');
     }

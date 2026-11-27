@@ -35,6 +35,22 @@ add_action( 'admin_post_qrrs_staff_pay_save', function () {
     check_admin_referer( 'qrrs_staff_pay_save_' . $id );
     $rid = intval( $_POST['restaurant_id'] ?? 0 );
     $type = in_array( $_POST['salary_type'] ?? '', [ 'daily', 'weekly', 'half_month', 'monthly' ], true ) ? $_POST['salary_type'] : 'monthly';
+    $role_key = sanitize_key( $_POST['role_key'] ?? '' );
+    $row_now  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}qrrs_staff WHERE id = %d AND restaurant_id = %d", $id, $rid ) );
+    if ( $row_now && $role_key !== '' && function_exists( 'qrrs_role_base' ) && qrrs_role_find( $rid, $role_key ) ) {
+        $base = qrrs_role_base( $rid, $role_key );
+        $wpdb->update( $wpdb->prefix . 'qrrs_staff', [ 'staff_role' => $base ], [ 'id' => $id ], [ '%s' ], [ '%d' ] );
+        if ( intval( $row_now->user_id ) > 0 ) {
+            $u = get_userdata( intval( $row_now->user_id ) );
+            if ( $u && ! in_array( 'administrator', (array) $u->roles, true ) ) {
+                $u->set_role( $base );
+                update_user_meta( $u->ID, 'qrrs_role_key', $role_key );
+            }
+        } else {
+            // no login: the role key itself is kept on the staff row
+            $wpdb->update( $wpdb->prefix . 'qrrs_staff', [ 'staff_role' => $role_key ], [ 'id' => $id ], [ '%s' ], [ '%d' ] );
+        }
+    }
     $wpdb->update( $wpdb->prefix . 'qrrs_staff', [
         'full_name'     => sanitize_text_field( wp_unslash( $_POST['full_name'] ?? '' ) ),
         'phone'         => sanitize_text_field( $_POST['phone'] ?? '' ),
@@ -66,6 +82,7 @@ function qrrs_staff_list_html( $restaurant_id, $context = 'page' ) {
         "SELECT * FROM {$wpdb->prefix}qrrs_staff WHERE restaurant_id = %d ORDER BY status = 'active' DESC, id ASC", $rid ) );
     $inp  = 'padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; width:100%; box-sizing:border-box;';
     $role_names = [ 'qr_manager' => 'Manager', 'qr_waiter' => 'Waiter', 'qr_kitchen' => 'Kitchen', 'qr_cashier' => 'Cashier' ];
+    foreach ( qrrs_roles_get( $rid ) as $__rn ) { $role_names[ $__rn['key'] ] = $__rn['name']; }
     ?>
     <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px; margin-bottom:14px;">
         <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:10px;">All staff (<?php echo count( $rows ); ?>)</div>
@@ -108,6 +125,14 @@ function qrrs_staff_list_html( $restaurant_id, $context = 'page' ) {
                             </select>
                         </label>
                         <label style="font-size:12px; font-weight:700;">Amount (৳)<input type="number" step="0.01" min="0" name="salary_amount" value="<?php echo esc_attr( $r->salary_amount ); ?>" style="<?php echo $inp; ?> margin-top:3px;"></label>
+                        <label style="font-size:12px; font-weight:700;">Role
+                            <select name="role_key" style="<?php echo $inp; ?> margin-top:3px;">
+                                <?php $cur_key = $login ? ( get_user_meta( intval( $r->user_id ), 'qrrs_role_key', true ) ?: $r->staff_role ) : $r->staff_role; ?>
+                                <?php foreach ( qrrs_roles_get( $rid ) as $__rr ) : if ( empty( $__rr['active'] ) && $__rr['key'] !== $cur_key ) continue; ?>
+                                    <option value="<?php echo esc_attr( $__rr['key'] ); ?>" <?php selected( $cur_key, $__rr['key'] ); ?>><?php echo esc_html( $__rr['name'] ); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
                         <label style="font-size:12px; font-weight:700;">Status
                             <select name="status" style="<?php echo $inp; ?> margin-top:3px;">
                                 <option value="active" <?php selected( $r->status, 'active' ); ?>>Active</option>

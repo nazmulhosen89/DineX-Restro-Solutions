@@ -95,7 +95,7 @@ if ( isset($_POST['save_staff']) ) {
         echo "<script>setTimeout(function(){ window.location.href='?tab=add-staff'; }, 2000);</script>";
     } else {
         // --- CREATE ---
-        $has_login = ! empty( $_POST['has_login'] );
+        $has_login = true; // every staff member has a login now
         $sal_type  = in_array( $_POST['salary_type'] ?? '', [ 'daily', 'weekly', 'half_month', 'monthly' ], true ) ? $_POST['salary_type'] : 'monthly';
         $sal_amt   = max( 0, (float) ( $_POST['salary_amount'] ?? 0 ) );
         $phone     = sanitize_text_field( $_POST['phone'] ?? '' );
@@ -107,7 +107,7 @@ if ( isset($_POST['save_staff']) ) {
                 echo "<div class='qrrs-toast error'>Free version allows only 1 " . esc_html( str_replace( 'qr_', '', $staff_role ) ) . " user per restaurant.</div>";
             } else {
                 $wpdb->insert( $staff_table, [
-                    'user_id' => 0, 'restaurant_id' => $restaurant_id, 'staff_role' => $staff_role,
+                    'user_id' => 0, 'restaurant_id' => $restaurant_id, 'staff_role' => $role_key,
                     'assigned_by' => get_current_user_id(), 'status' => $status, 'full_name' => $staff_name,
                     'phone' => $phone, 'salary_type' => $sal_type, 'salary_amount' => $sal_amt, 'address' => $address,
                 ], [ '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%f', '%s' ] );
@@ -283,7 +283,7 @@ $active_res_name = $wpdb->get_var($wpdb->prepare("SELECT restaurant_name FROM $r
                 <div class="sf-card">
                     <div class="sf-head"><span class="sf-num"><?php echo $edit_mode ? '3' : '4'; ?></span><span class="sf-title">Login access</span></div>
                     <?php if ( ! $edit_mode ) : ?>
-                    <label class="sf-toggle"><input type="checkbox" name="has_login" id="sf-has-login" value="1"> Give this person a login (username &amp; password)</label>
+                    <label class="sf-toggle"><input type="checkbox" name="has_login" id="sf-has-login" value="1" checked> Give this person a login (username &amp; password)</label>
                     <?php endif; ?>
                     <div class="sf-login <?php echo $edit_mode ? 'show' : ''; ?>" id="sf-login">
                         <div class="sf-grid">

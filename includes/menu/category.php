@@ -5,6 +5,9 @@ global $wpdb;
 $cat_table = $wpdb->prefix . 'qrrs_categories';
 $res_table = $wpdb->prefix . 'qrrs_restaurants';
 
+// Can this user change menu categories? (role permission "Change items, prices & offers")
+$can_menu = ! function_exists( 'qrrs_can' ) || qrrs_can( 'menu.edit' );
+
 /**
  * 1. Restaurant ID Logic
  */
@@ -30,20 +33,20 @@ if ( $edit_id ) {
 /**
  * 2. Handle Actions (Add/Update/Status Toggle)
  */
-if ( isset($_POST['save_category']) ) {
+if ( isset($_POST['save_category']) && $can_menu ) {
     $name   = sanitize_text_field($_POST['cat_name']);
-    $res_id  = intval($_POST['restaurant_id']); 
+    $res_id  = intval($_POST['restaurant_id']);
     $image   = esc_url_raw($_POST['cat_image']);
     $slug    = sanitize_title($name);
 
     $data_array = [
         'restaurant_id' => $res_id,
-        'category_name' => $name, 
+        'category_name' => $name,
         'slug'          => $slug,
         'image'         => $image
     ];
 
-    $format = ['%d', '%s', '%s', '%s']; 
+    $format = ['%d', '%s', '%s', '%s'];
 
     if ( $edit_id ) {
         $updated = $wpdb->update($cat_table, $data_array, ['id' => $edit_id], $format, ['%d']);
@@ -61,36 +64,40 @@ if ( isset($_POST['save_category']) ) {
             echo "<div class='qrrs-toast error'>DB Error: $db_error</div>";
         }
     }
+} elseif ( isset($_POST['save_category']) ) {
+    echo "<div class='qrrs-toast error'>Your role cannot change categories.</div>";
 }
 
-// 📌 ডিলিটের পরিবর্তে Active/Inactive টগল লজিক
+// Active/Inactive toggle (no delete)
 if ( isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET['id']) ) {
-    $cat_id = intval($_GET['id']);
-    // ডাটাবেজে status কলাম না থাকলে অ্যাড করে নিতে পারেন, অথবা ডিফল্টভবে available/inactive হ্যান্ডেল করা
-    $current_status = $wpdb->get_var($wpdb->prepare("SELECT status FROM $cat_table WHERE id = %d AND restaurant_id = %d", $cat_id, $active_res_id));
-    $new_status = ($current_status == 'inactive') ? 'available' : 'inactive';
-    
-    // যদি আপনার টেবিলে status কলাম না থাকে, তবে এই আপডেট কুয়েরি কাজ করার জন্য কলাম থাকা লাগবে
-    $wpdb->update($cat_table, ['status' => $new_status], ['id' => $cat_id, 'restaurant_id' => $active_res_id]);
-    echo "<div class='qrrs-toast success'>Category status updated successfully!</div>";
-    echo "<script>setTimeout(function(){ window.location.href='?tab=categories'; }, 1000);</script>";
+    if ( ! $can_menu ) {
+        echo "<div class='qrrs-toast error'>Your role cannot change categories.</div>";
+    } else {
+        $cat_id = intval($_GET['id']);
+        $current_status = $wpdb->get_var($wpdb->prepare("SELECT status FROM $cat_table WHERE id = %d AND restaurant_id = %d", $cat_id, $active_res_id));
+        $new_status = ($current_status == 'inactive') ? 'available' : 'inactive';
+
+        $wpdb->update($cat_table, ['status' => $new_status], ['id' => $cat_id, 'restaurant_id' => $active_res_id]);
+        echo "<div class='qrrs-toast success'>Category status updated successfully!</div>";
+        echo "<script>setTimeout(function(){ window.location.href='?tab=categories'; }, 1000);</script>";
+    }
 }
 ?>
 
+<?php if ( $can_menu ) : ?>
 <div class="qrrs-card" style="background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
     <div class="card-header" style="margin-bottom: 15px;">
         <h3 style="margin:0; font-size: 18px; color: #1e293b; display: flex; align-items: center; gap: 8px;">
             <span class="material-icons-outlined" style="font-size: 20px; color: #2563eb;">
                 <?php echo ($edit_id && $edit_data) ? 'edit_note' : 'create_new_folder'; ?>
-            </span> 
+            </span>
             <?php echo ($edit_id && $edit_data) ? 'Edit Category' : 'Add Menu Category'; ?>
         </h3>
     </div>
 
     <form method="POST" class="qrrs-form" style="margin:0;">
-        <!-- 📌 এক লাইনে ফর্ম লেআউট (Restaurant, Category Name, Image, Button) -->
         <div style="display: grid; grid-template-columns: 1fr 1fr 140px auto; gap: 15px; align-items: flex-end;">
-            
+
             <div class="form-col">
                 <label style="display:block; font-weight:600; font-size: 13px; margin-bottom: 6px; color: #475569;">Target Restaurant</label>
                 <?php $active_res_name = $wpdb->get_var($wpdb->prepare("SELECT restaurant_name FROM $res_table WHERE id = %d", $active_res_id)); ?>
@@ -103,7 +110,6 @@ if ( isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET
                 <input type="text" name="cat_name" required value="<?php echo $edit_data ? esc_attr($edit_data->category_name) : ''; ?>" placeholder="e.g. Pizza" style="width:100%; height: 42px; padding: 0 12px; border:1px solid #cbd5e1; border-radius:6px; font-size: 14px;">
             </div>
 
-            <!-- 📌 ইমেজ ফিল্ড (সরাসরি ছবিতে ক্লিক করলে আপলোড হবে) -->
             <div class="form-col">
                 <label style="display:block; font-weight:600; font-size: 13px; margin-bottom: 6px; color: #475569;">Category Image</label>
                 <div style="display:flex; align-items:center;">
@@ -124,12 +130,13 @@ if ( isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET
         </div>
     </form>
 </div>
+<?php endif; ?>
 
 <div class="qrrs-cat-card" style="background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
     <div class="card-header" style="margin-bottom: 15px;">
         <h3 style="margin:0; font-size: 18px; color: #1e293b; display: flex; align-items: center; gap: 8px;">
-            <span class="material-icons-outlined" style="font-size: 20px; color: #059669;">folder</span> 
-            Categories for <?php echo esc_html($active_res_name); ?>
+            <span class="material-icons-outlined" style="font-size: 20px; color: #059669;">folder</span>
+            Categories for <?php echo esc_html( $wpdb->get_var( $wpdb->prepare( "SELECT restaurant_name FROM $res_table WHERE id = %d", $active_res_id ) ) ); ?>
         </h3>
     </div>
 
@@ -144,7 +151,7 @@ if ( isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET
         </thead>
 
         <tbody>
-            <?php 
+            <?php
             $categories = $wpdb->get_results($wpdb->prepare(
                 "SELECT * FROM $cat_table WHERE restaurant_id = %d ORDER BY id DESC",
                 $active_res_id
@@ -160,8 +167,7 @@ if ( isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET
                     <img src="<?php echo esc_url($img_url); ?>" style="width:40px; height:40px; border-radius:6px; object-fit:cover; border: 1px solid #e2e8f0;">
                 </td>
                 <td style="padding:12px;"><strong style="color: #1e293b; font-size: 14px;"><?php echo esc_html($row->category_name); ?></strong></td>
-                
-                <!-- 📌 স্ট্যাটাস ব্যাজ -->
+
                 <td style="padding:12px;">
                     <?php if($is_inactive): ?>
                         <span style="background: #fee2e2; color: #dc2626; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase;">Inactive</span>
@@ -170,15 +176,18 @@ if ( isset($_GET['action']) && $_GET['action'] == 'toggle_status' && isset($_GET
                     <?php endif; ?>
                 </td>
 
-                <!-- 📌 এডিট এবং Active/Inactive টগল বাটন (ডিলিট বাদ দেওয়া হয়েছে) -->
                 <td style="padding:12px; text-align: right;">
+                    <?php if ( $can_menu ) : ?>
                     <a href="?tab=categories&edit_id=<?php echo $row->id; ?>" style="display: inline-block; padding: 6px 14px; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none; margin-right: 6px;">Edit</a>
-                    
-                    <a href="?tab=categories&action=toggle_status&id=<?php echo $row->id; ?>" 
-                       style="display: inline-block; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none; 
+
+                    <a href="?tab=categories&action=toggle_status&id=<?php echo $row->id; ?>"
+                       style="display: inline-block; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none;
                        <?php echo $is_inactive ? 'background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0;' : 'background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;'; ?>">
                         <?php echo $is_inactive ? 'Set Active' : 'Set Inactive'; ?>
                     </a>
+                    <?php else : ?>
+                    <span style="font-size:12px; color:#94a3b8;">View only</span>
+                    <?php endif; ?>
                 </td>
             </tr>
             <?php endforeach; else: ?>

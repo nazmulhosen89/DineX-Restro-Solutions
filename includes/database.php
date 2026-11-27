@@ -796,6 +796,20 @@ class QRRS_Database {
             KEY restaurant_salary (restaurant_id, staff_id)
         ) $charset_collate;";
         dbDelta( $sql_salary );
+
+        $sql_att = "CREATE TABLE {$prefix}attendance (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            restaurant_id bigint(20) NOT NULL,
+            staff_id bigint(20) NOT NULL,
+            work_date date NOT NULL,
+            check_in datetime NOT NULL,
+            check_out datetime DEFAULT NULL,
+            source varchar(10) NOT NULL DEFAULT 'self',
+            note varchar(255) DEFAULT '',
+            PRIMARY KEY (id),
+            KEY restaurant_att (restaurant_id, staff_id, work_date)
+        ) $charset_collate;";
+        dbDelta( $sql_att );
         dbDelta( $sql_rooms );
         dbDelta( $sql_stock_movements );
         dbDelta( $sql_requisitions );

@@ -131,6 +131,7 @@ add_action( 'admin_post_qrrs_offer_save', function () {
     if ( ! is_user_logged_in() || ! qrrs_offers_user_can() ) wp_die( 'Not allowed.' );
     global $wpdb;
     check_admin_referer( 'qrrs_offer_save' );
+    if ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'menu.edit' ) ) wp_die( 'Your role cannot change offers.' );
     $rid   = intval( qrrs_inventory_get_active_restaurant_id() );
     $name  = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
     $type  = in_array( $_POST['offer_type'] ?? '', [ 'fixed', 'buyget' ], true ) ? $_POST['offer_type'] : 'percent';
@@ -172,6 +173,7 @@ add_action( 'admin_post_qrrs_offer_delete', function () {
     global $wpdb;
     $id = intval( $_POST['offer_id'] ?? 0 );
     check_admin_referer( 'qrrs_offer_delete_' . $id );
+    if ( function_exists( 'qrrs_can' ) && ! qrrs_can( 'menu.edit' ) ) wp_die( 'Your role cannot change offers.' );
     $rid = intval( qrrs_inventory_get_active_restaurant_id() );
     $row = $wpdb->get_row( $wpdb->prepare( "SELECT name FROM {$wpdb->prefix}qrrs_offers WHERE id = %d AND restaurant_id = %d", $id, $rid ) );
     if ( $row ) {
@@ -491,4 +493,3 @@ function qrrs_offer_names_for_item( $rid, $item_id ) {
     }
     return array_values( array_unique( $names ) );
 }
-

@@ -85,7 +85,7 @@ if ( $active_res_id ) {
 
 
 
-$current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'reports';
+$current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : ( ( function_exists( 'qrrs_is_system_user_only' ) && qrrs_is_system_user_only() && ! qrrs_menu_allowed( 'reports' ) ) ? 'attendance' : 'reports' );
 
 // Settings: one menu, several sections (each section opens an existing page)
 $is_settings = false;
@@ -170,6 +170,7 @@ if ( 'settings' === $current_tab && qrrs_is_full_admin() ) {
 
                 <div id="user-dropdown" class="qrrs-dropdown-menu" style="display:none; position:absolute; right:0; top:100%; background:#fff; border:1px solid #ddd; border-radius:8px; box-shadow:0 10px 15px rgba(0,0,0,0.1); width:200px; z-index:9999;">
                     <a href="?tab=profile" class="dropdown-item" style="display:block; padding:10px 15px; text-decoration:none; color:#333; border-bottom:1px solid #eee;">👤 My Profile</a>
+                    <a href="?tab=attendance" class="dropdown-item" style="display:block; padding:10px 15px; text-decoration:none; color:#333; border-bottom:1px solid #eee;">🕒 Attendance</a>
                     <?php if ( qrrs_is_full_admin() ) : ?>
                         <a href="?tab=license" class="dropdown-item" style="display:block; padding:10px 15px; text-decoration:none; color:#333; border-bottom:1px solid #eee;">License Info</a>
                     <?php endif; ?>
@@ -187,7 +188,7 @@ if ( 'settings' === $current_tab && qrrs_is_full_admin() ) {
 <?php if ( qrrs_menu_allowed( 'tables' ) ) : ?>                <li><a href="?tab=tables" class="<?php echo $current_tab == 'tables' ? 'active' : ''; ?>"><i class="fa-solid fa-chair"></i> Table Management</a></li><?php endif; ?>
 <?php if ( qrrs_menu_allowed( 'rooms' ) ) : ?>                <?php if ( qrrs_inventory_can_manage() && qrrs_room_service_enabled( qrrs_inventory_get_active_restaurant_id() ) ) : ?><li><a href="?tab=rooms" class="<?php echo $current_tab == 'rooms' ? 'active' : ''; ?>"><i class="fa-solid fa-bed"></i> Rooms</a></li><?php endif; ?><?php endif; ?>
 <?php if ( qrrs_menu_allowed( 'billing' ) ) : ?>                <li><a href="?tab=billing" class="<?php echo $current_tab == 'billing' ? 'active' : ''; ?>"><i class="fa-solid fa-cash-register"></i> Billing & POS</a></li><?php endif; ?>
-<?php if ( qrrs_menu_allowed( 'reports' ) ) : ?>                <li><a href="?tab=reports" class="<?php echo $current_tab == 'reports' ? 'active' : ''; ?>"><i class="fa-solid fa-chart-line"></i> Reports</a></li><?php endif; ?>
+<?php if ( qrrs_menu_allowed( 'reports' ) ) : ?>                                <li><a href="?tab=reports" class="<?php echo $current_tab == 'reports' ? 'active' : ''; ?>"><i class="fa-solid fa-chart-line"></i> Reports</a></li><?php endif; ?>
 <?php if ( qrrs_menu_allowed( 'accounts' ) ) : ?>                <?php if ( qrrs_inventory_can_manage() ) : ?><li><a href="?tab=accounts" class="<?php echo $current_tab == 'accounts' ? 'active' : ''; ?>"><i class="fa-solid fa-briefcase"></i> Accounts &amp; HR</a></li><?php endif; ?><?php endif; ?>
 <?php if ( qrrs_menu_allowed( 'categories' ) ) : ?>                <li><a href="?tab=categories" class="<?php echo $current_tab == 'categories' ? 'active' : ''; ?>"><i class="fa-solid fa-folder-tree"></i> Categories</a></li><?php endif; ?>
 <?php if ( qrrs_menu_allowed( 'items' ) ) : ?>                <li><a href="?tab=items" class="<?php echo $current_tab == 'items' ? 'active' : ''; ?>"><i class="fa-solid fa-bowl-food"></i> Items</a></li><?php endif; ?>
@@ -246,9 +247,15 @@ if ( 'settings' === $current_tab && qrrs_is_full_admin() ) {
                 }
 
                 if ( function_exists( 'qrrs_tab_allowed' ) && ! qrrs_tab_allowed( $current_tab ) ) { $current_tab = 'denied'; }
+                echo function_exists( 'qrrs_hide_forms_script' ) ? qrrs_hide_forms_script() : '';
                 switch ($current_tab) {
                     case 'offers':
                         if ( function_exists( 'qrrs_offers_render' ) ) { qrrs_offers_render( qrrs_inventory_get_active_restaurant_id() ); }
+                        break;
+                    case 'attendance':
+                        if ( function_exists( 'qrrs_att_manager_qr_render' ) ) { qrrs_att_manager_qr_render( qrrs_inventory_get_active_restaurant_id() ); }
+                        if ( function_exists( 'qrrs_att_scanner_render' ) ) { qrrs_att_scanner_render( qrrs_inventory_get_active_restaurant_id() ); }
+                        if ( function_exists( 'qrrs_att_self_render' ) ) { qrrs_att_self_render( qrrs_inventory_get_active_restaurant_id() ); }
                         break;
                     case 'roles':
                         if ( function_exists( 'qrrs_roles_render' ) ) { qrrs_roles_render( qrrs_inventory_get_active_restaurant_id() ); }

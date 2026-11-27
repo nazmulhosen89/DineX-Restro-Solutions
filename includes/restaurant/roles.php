@@ -74,21 +74,24 @@ function qrrs_can( $action ) {
     return in_array( $action, qrrs_role_actions( $role ), true );
 }
 
-/** Hides the forms of actions this role cannot use (the server checks them as well). */
+/** Hides the forms and buttons of actions this role cannot use (the server checks them as well). */
 function qrrs_hide_forms_script() {
+    // [ field name, value ] ; value '*' means any value
     $map = [
-        'accounts.expense' => [ 'qrrs_add_expense', 'qrrs_delete_expense' ],
-        'accounts.closing' => [ 'qrrs_day_close' ],
-        'hr.staff'         => [ 'qrrs_staff_pay_save', 'qrrs_staff_row_remove' ],
-        'hr.leave'         => [ 'qrrs_leave_save', 'qrrs_leave_remove' ],
-        'hr.salary'        => [ 'qrrs_salary_pay' ],
+        'accounts.expense' => [ [ 'action', 'qrrs_add_expense' ], [ 'action', 'qrrs_delete_expense' ] ],
+        'accounts.closing' => [ [ 'action', 'qrrs_day_close' ] ],
+        'hr.staff'         => [ [ 'action', 'qrrs_staff_pay_save' ], [ 'action', 'qrrs_staff_row_remove' ] ],
+        'hr.leave'         => [ [ 'action', 'qrrs_leave_save' ], [ 'action', 'qrrs_leave_remove' ] ],
+        'hr.salary'        => [ [ 'action', 'qrrs_salary_pay' ] ],
+        'menu.edit'        => [ [ 'save_item_action', '*' ], [ 'action', 'qrrs_offer_save' ], [ 'action', 'qrrs_offer_delete' ] ],
+        'inventory.edit'   => [ [ 'qrrs_inventory_action', '*' ] ],
     ];
     $hide = [];
-    foreach ( $map as $perm => $acts ) {
-        if ( ! function_exists( 'qrrs_can' ) || ! qrrs_can( $perm ) ) $hide = array_merge( $hide, $acts );
+    foreach ( $map as $perm => $pairs ) {
+        if ( ! function_exists( 'qrrs_can' ) || ! qrrs_can( $perm ) ) $hide = array_merge( $hide, $pairs );
     }
     if ( empty( $hide ) ) return '';
-    return '<script>(function(){ var A=' . wp_json_encode( $hide ) . '; A.forEach(function(a){ document.querySelectorAll(\'input[name="action"][value="\'+a+\'"]\').forEach(function(i){ if (i.form) i.form.style.display="none"; }); }); })();</script>';
+    return '<script>(function(){ var P=' . wp_json_encode( $hide ) . '; P.forEach(function(p){ var sel=\'[name="\'+p[0]+\'"]\'+(p[1]===\'*\'?\'\':\'[value="\'+p[1]+\'"]\'); document.querySelectorAll(sel).forEach(function(i){ var f=i.form||i.closest(\'form\'); if(f) f.style.display=\'none\'; }); }); })();</script>';
 }
 
 /** Tick boxes for the actions, grouped by module. */
@@ -109,7 +112,7 @@ function qrrs_action_pills( $selected, $prefix = '' ) {
 }
 
 function qrrs_base_role_names() {
-    return [ 'qr_manager' => 'Manager', 'qr_waiter' => 'Waiter', 'qr_kitchen' => 'Kitchen', 'qr_cashier' => 'Cashier' ];
+    return [ 'qr_manager' => 'Manager', 'qr_waiter' => 'Waiter', 'qr_kitchen' => 'Kitchen', 'qr_cashier' => 'Cashier', 'qr_support' => 'Support staff (profile & attendance only)' ];
 }
 
 function qrrs_default_roles() {
@@ -153,7 +156,7 @@ function qrrs_role_base( $restaurant_id, $key ) {
 function qrrs_user_role_key( $user ) {
     $k = (string) get_user_meta( $user->ID, 'qrrs_role_key', true );
     if ( $k !== '' ) return $k;
-    foreach ( [ 'qr_manager', 'qr_waiter', 'qr_kitchen', 'qr_cashier' ] as $base ) {
+    foreach ( [ 'qr_manager', 'qr_waiter', 'qr_kitchen', 'qr_cashier', 'qr_support' ] as $base ) {
         if ( in_array( $base, (array) $user->roles, true ) ) return $base;
     }
     return '';
@@ -173,6 +176,8 @@ function qrrs_menu_allowed( $tab ) {
 /** Is the page (tab) open for this user? Used before a page is drawn. */
 function qrrs_tab_allowed( $tab ) {
     if ( in_array( $tab, [ 'profile', 'denied' ], true ) ) return true;
+    // every restaurant system user can see their own attendance
+    if ( 'attendance' === $tab ) return function_exists( 'qrrs_is_system_user_only' ) && qrrs_is_system_user_only();
     if ( in_array( $tab, [ 'restaurants', 'license' ], true ) ) return function_exists( 'qrrs_is_full_admin' ) && qrrs_is_full_admin();
     if ( in_array( $tab, [ 'add-staff', 'online-settings', 'roles', 'offers' ], true ) ) return qrrs_menu_allowed( 'settings' );
     if ( 'closing' === $tab ) return qrrs_menu_allowed( 'accounts' );
