@@ -17,6 +17,7 @@ add_action( 'wp_enqueue_scripts', function () {
         'ajax'  => admin_url( 'admin-ajax.php' ),
         'nonce' => wp_create_nonce( 'qr_order_nonce' ),
         'every' => 5000,
+        'printer' => function_exists( 'qrrs_printer_get' ) ? qrrs_printer_get( intval( qrrs_inventory_get_active_restaurant_id() ) ) : [],
         'sound' => str_replace( ' ', '%20', QRRS_URL . 'assets/sounds/notification 01.mp3' ),
     ] );
 } );
@@ -51,6 +52,18 @@ add_action( 'wp_ajax_qrrs_live_ready', function () {
     $rid = intval( qrrs_inventory_get_active_restaurant_id() );
     $ids = $wpdb->get_col( $wpdb->prepare(
         "SELECT id FROM {$wpdb->prefix}qrrs_orders WHERE restaurant_id = %d AND DATE(created_at) = %s AND order_status = 'ready' ORDER BY id",
+        $rid, current_time( 'Y-m-d' )
+    ) );
+    wp_send_json_success( [ 'ids' => array_map( 'intval', $ids ) ] );
+} );
+
+add_action( 'wp_ajax_qrrs_live_new', function () {
+    check_ajax_referer( 'qr_order_nonce', 'security' );
+    if ( ! is_user_logged_in() ) wp_send_json_error( 'Please log in again.' );
+    global $wpdb;
+    $rid = intval( qrrs_inventory_get_active_restaurant_id() );
+    $ids = $wpdb->get_col( $wpdb->prepare(
+        "SELECT id FROM {$wpdb->prefix}qrrs_orders WHERE restaurant_id = %d AND DATE(created_at) = %s AND order_status = 'pending' ORDER BY id",
         $rid, current_time( 'Y-m-d' )
     ) );
     wp_send_json_success( [ 'ids' => array_map( 'intval', $ids ) ] );
