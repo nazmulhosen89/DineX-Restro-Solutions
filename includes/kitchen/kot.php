@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
  * the same way as the token slip.
  */
 
-function qrrs_kot_html( $order_id ) {
+function qrrs_kot_html( $order_id, $print_script = true ) {
     global $wpdb;
     $o   = $wpdb->prefix . 'qrrs_orders';
     $oi  = $wpdb->prefix . 'qrrs_order_items';
@@ -49,7 +49,7 @@ function qrrs_kot_html( $order_id ) {
 <?php endforeach; ?>
 <hr>
 <div class="c"><?php echo count( $items ); ?> item line(s)</div>
-<script>window.onload = function () { setTimeout(function () { window.print(); }, 300); };</script>
+<?php if ( $print_script ) : ?><script>window.onload = function () { setTimeout(function () { window.print(); }, 300); };</script><?php endif; ?>
 </body></html>
 <?php
     return ob_get_clean();
@@ -59,7 +59,7 @@ add_action( 'wp_ajax_qrrs_kot_print', function () {
     check_ajax_referer( 'qr_order_nonce', 'security' );
     if ( ! is_user_logged_in() ) wp_send_json_error( 'Please log in again.' );
     $order_id = intval( $_POST['order_id'] ?? 0 );
-    $html = qrrs_kot_html( $order_id );
+    $html = qrrs_kot_html( $order_id, empty( $_POST['silent'] ) );
     if ( '' === $html ) wp_send_json_error( 'Order not found.' );
     wp_send_json_success( [ 'html' => $html ] );
 } );
